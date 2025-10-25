@@ -167,7 +167,7 @@ function checkRole($currentRole, $requiredRole) {
 // --- 3. INPUT HANDLING + AUTHENTICATION ---
 $inputJSON = file_get_contents('php://input');
 $input = json_decode($inputJSON, true);
-if (!is_array($input)) { $input = $_POST ?? []; }
+if (!is_array($input)) { $input = $_REQUEST ?? []; }
 
 // Determine action via body first, then query param; fallback for Paytm callbacks
 $action = $input['action'] ?? ($_GET['action'] ?? null);
