@@ -14,6 +14,9 @@ declare(strict_types=1);
 require_once __DIR__ . '/config.php';
 
 header('Content-Type: text/html; charset=UTF-8');
+header('X-Frame-Options: DENY');
+header('Referrer-Policy: no-referrer');
+header('X-Content-Type-Options: nosniff');
 
 function generateOrderId(): string {
     try {
@@ -47,13 +50,32 @@ if ($redirectUrlParam === '') {
     })();
 }
 
-// Append local hints to redirect_url for reliable crediting on return (safe for gateway)
+// Persist mapping locally to avoid sending sensitive user id in redirect back
+try {
+  if ($remark1 !== '') {
+    $conn = @new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME);
+    if (!$conn->connect_error) {
+      @$conn->query("CREATE TABLE IF NOT EXISTS payments (id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY, order_id VARCHAR(64) UNIQUE, txn_id VARCHAR(64) NULL, user_id VARCHAR(36) NOT NULL, amount DECIMAL(10,2) NOT NULL, status VARCHAR(16) NOT NULL DEFAULT 'INIT', created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+      $ins = $conn->prepare("INSERT INTO payments (order_id, user_id, amount, status) VALUES (?, ?, ?, 'INIT') ON DUPLICATE KEY UPDATE user_id=VALUES(user_id), amount=VALUES(amount)");
+      if ($ins) {
+        $amtStr = number_format($amount, 2, '.', '');
+        $ins->bind_param('ssd', $orderId, $remark1, $amount);
+        $ins->execute();
+        $ins->close();
+      }
+      $conn->close();
+    }
+  }
+} catch (Throwable $e) { /* ignore db errors here */ }
+
+// Append local hints and signature to redirect_url for reliable and safe return
 try {
     $add = [ 'local_order_id' => $orderId ];
-    if ($remark1 !== '') { $add['uid'] = $remark1; }
     // Use already-sanitized $amount to avoid undefined variable warnings
     $amtStr = number_format($amount, 2, '.', '');
     if (is_string($amtStr) && preg_match('/^\d+\.(\d{2})$/', $amtStr)) { $add['amt'] = $amtStr; }
+    // Add HMAC signature that payment_return.php will verify (no user id included)
+    $add['sig'] = b64u(hash_hmac('sha256', $orderId . '|' . ($add['amt'] ?? '0.00'), APP_SECRET, true));
     $redirectUrlParam .= (strpos($redirectUrlParam, '?') !== false ? '&' : '?') . http_build_query($add);
 } catch (Throwable $e) { /* ignore */ }
 

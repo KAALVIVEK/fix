@@ -1,16 +1,14 @@
 <?php
 // Byte gateway redirect handler to credit user balance without webhook
-// Expected GET params appended by gateway on redirect (example):
-// ?order_id=...&status=SUCCESS&amount=...&remark1=UID-... (names may vary)
+// Hardened: validates HMAC token attached to redirect_url, no debug query echo
 
-// Use config logger, but avoid including dashboard.php to prevent JSON headers/400s
 require_once __DIR__ . '/config.php';
 
-// Minimal DB credentials (match dashboard.php)
-if (!defined('DB_HOST')) { define('DB_HOST', 'localhost'); }
-if (!defined('DB_USER')) { define('DB_USER', 'u346622393_vivek'); }
-if (!defined('DB_PASS')) { define('DB_PASS', 'Seth#2009'); }
-if (!defined('DB_NAME')) { define('DB_NAME', 'u346622393_vivek'); }
+// Minimal DB credentials sourced via config.php
+if (!defined('DB_HOST')) { define('DB_HOST', DB_HOST); }
+if (!defined('DB_USER')) { define('DB_USER', DB_USER); }
+if (!defined('DB_PASS')) { define('DB_PASS', DB_PASS); }
+if (!defined('DB_NAME')) { define('DB_NAME', DB_NAME); }
 
 function connectDB() {
     $conn = new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME);
@@ -42,6 +40,9 @@ function ensurePaymentsTables($conn) {
 // Return HTML to the browser on GET; do not force JSON
 header_remove('Content-Type');
 header('Content-Type: text/html; charset=UTF-8');
+header('X-Frame-Options: DENY');
+header('Referrer-Policy: no-referrer');
+header('X-Content-Type-Options: nosniff');
 
 function normalize($key, $arr) {
     $map = [
@@ -69,19 +70,31 @@ try {
     $amountV = normalize('amount', $q);
     if ($amountV === '' && isset($q['amt'])) { $amountV = (string)$q['amt']; }
     $amount  = is_numeric($amountV) ? (float)$amountV : 0.0;
-    $userId  = normalize('remark1', $q);
-    if ($userId === '' && isset($q['uid'])) { $userId = trim((string)$q['uid']); }
+    // user id is now stored in DB mapping created during order; do not trust query for uid
+    $userId = '';
 
-    // Allow byte_order_status override to bypass status requirement when only order_id is present
-    $byte = $_GET['byte_order_status'] ?? '';
+    // Verify HMAC signature if present (we will add it during create order)
+    $sig = isset($q['sig']) ? (string)$q['sig'] : '';
+    $toSign = $orderId . '|' . number_format($amount, 2, '.', '');
+    $calc = b64u(hash_hmac('sha256', $toSign, APP_SECRET, true));
+    if (!$sig || !hash_equals($calc, $sig)) {
+        // If signature missing or invalid, do not credit; just redirect back with failure
+        logPaymentEvent('payment_return.invalid_sig', ['order_id'=>$orderId]);
+        $dest = '/ztrax/dashboard.html';
+        $sep = (strpos($dest,'?')!==false?'&':'?');
+        $qs = http_build_query(['pay_status'=>'failed','order_id'=>$orderId]);
+        echo "<script>location.href='" . htmlspecialchars($dest . $sep . $qs, ENT_QUOTES) . "';</script>";
+        exit;
+    }
+
     if ($orderId === '') { throw new Exception('Missing order_id'); }
 
-    // Only credit on success-equivalent statuses (or when trusted byte token present)
-    $success = ($byte === 'BYTE37091761364125') || in_array($status, ['SUCCESS','TXN_SUCCESS','COMPLETED'], true);
+    // Only credit on success-equivalent statuses
+    $success = in_array($status, ['SUCCESS','TXN_SUCCESS','COMPLETED'], true);
 
     // Record return event
     logPaymentEvent('payment_return.received', [
-        'order_id'=>$orderId, 'status'=>$status, 'amount'=>$amount, 'user_id'=>$userId, 'query'=>$q
+        'order_id'=>$orderId, 'status'=>$status
     ]);
 
     $msg = 'Payment failed or cancelled.';
@@ -91,36 +104,18 @@ try {
             $conn = connectDB();
             ensurePaymentsTables($conn);
             // Read existing amount if not provided
-            $sel = $conn->prepare('SELECT amount,status FROM payments WHERE order_id = ? LIMIT 1');
+            $sel = $conn->prepare('SELECT user_id, amount, status FROM payments WHERE order_id = ? LIMIT 1');
             $sel->bind_param('s', $orderId);
             $sel->execute();
             $row = $sel->get_result()->fetch_assoc();
             $sel->close();
             $dbAmount = isset($row['amount']) ? (float)$row['amount'] : 0.0;
+            $userId = isset($row['user_id']) ? (string)$row['user_id'] : '';
             $useAmount = ($amount > 0 ? $amount : $dbAmount);
-            // As a last resort, try to read amount from payment logs when DB has no mapping
-            if ($useAmount <= 0) {
-                require_once __DIR__ . '/config.php';
-                $logFile = __DIR__ . '/storage/payment_logs.log';
-                if (is_readable($logFile)) {
-                    $lines = @file($logFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
-                    if ($lines) {
-                        for ($i = count($lines) - 1; $i >= 0; $i--) {
-                            $line = $lines[$i];
-                            if (strpos($line, 'create_order.requested') !== false && strpos($line, $orderId) !== false) {
-                                // Extract amount":"XX.XX"
-                                if (preg_match('/"amount"\s*:\s*"([0-9]+\.[0-9]{2})"/', $line, $m)) {
-                                    $useAmount = (float)$m[1];
-                                }
-                                break;
-                            }
-                        }
-                    }
-                }
-            }
+            // Do not attempt to parse logs for amounts anymore (avoid query leakage)
 
             // Mark success and upsert mapping
-            $ins = $conn->prepare("INSERT INTO payments (order_id, user_id, amount, status) VALUES (?, ?, ?, 'SUCCESS') ON DUPLICATE KEY UPDATE status='SUCCESS', user_id=IF(VALUES(user_id)<>'' AND user_id='', VALUES(user_id), user_id), amount=IF(VALUES(amount)>0 AND amount=0, VALUES(amount), amount)");
+            $ins = $conn->prepare("INSERT INTO payments (order_id, user_id, amount, status) VALUES (?, ?, ?, 'SUCCESS') ON DUPLICATE KEY UPDATE status='SUCCESS'");
             $ins->bind_param('ssd', $orderId, $userId, $useAmount);
             $ins->execute();
             $ins->close();
@@ -147,7 +142,7 @@ try {
     $qs = http_build_query([
         'pay_status'=>$success?'success':'failed',
         'order_id'=>$orderId,
-        'msg'=>$msg
+        // hide details in URL; short status only
     ]);
     // Some free hosts block Location redirects for cross-site referrers; render minimal HTML fallback
     echo "<script>location.href='" . htmlspecialchars($dest . $sep . $qs, ENT_QUOTES) . "';</script>";
@@ -155,6 +150,6 @@ try {
 
 } catch (Throwable $e) {
     // Fallback message
-    echo "<script>location.href='dashboard.html?pay_status=error&msg=" . urlencode('Payment processing error') . "';</script>";
+    echo "<script>location.href='dashboard.html?pay_status=error';</script>";
     exit;
 }

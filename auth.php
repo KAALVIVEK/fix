@@ -2,21 +2,45 @@
 // =========================================================================
 // ZTRAX AUTHENTICATION API - SECURE PHP BACKEND FOR LOGIN/SIGNUP
 // =========================================================================
-// SECURITY NOTE: This script uses Prepared Statements and password hashing
-// to prevent SQL Injection and protect user credentials.
+// SECURITY NOTE: Uses Prepared Statements, password hashing, HMAC tokens,
+// restrictive CORS, and security headers.
 // =========================================================================
 
-header("Content-Type: application/json; charset=UTF-8");
-header("Access-Control-Allow-Origin: *"); // Allow access from your frontend URL
-header("Access-Control-Allow-Methods: POST");
-header("Access-Control-Max-Age: 3600");
-header("Access-Control-Allow-Headers: Content-Type, Access-Control-Allow-Headers, Authorization, X-Requested-With");
+require_once __DIR__ . '/config.php';
 
-// --- 1. Database Configuration (MUST BE UPDATED) ---
-define('DB_HOST', 'localhost');
-define('DB_USER', 'u346622393_vivek');
-define('DB_PASS', 'Seth#2009');
-define('DB_NAME', 'u346622393_vivek');
+applyCors(true);
+applySecurityHeaders('application/json');
+
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+    http_response_code(204);
+    exit;
+}
+
+// --- Simple IP-based rate limiting (best-effort, file-backed) ---
+function rl_key(string $action): string {
+    $ip = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
+    $dir = __DIR__ . '/storage';
+    if (!is_dir($dir)) { @mkdir($dir, 0775, true); }
+    return $dir . '/rl_' . preg_replace('/[^A-Za-z0-9_.-]/', '_', $action . '_' . $ip) . '.json';
+}
+function rateLimit(string $action, int $limit = 10, int $windowSec = 600): bool {
+    $file = rl_key($action);
+    $now = time();
+    $data = ['start' => $now, 'count' => 0];
+    if (is_file($file)) {
+        $raw = @file_get_contents($file);
+        $parsed = $raw ? json_decode($raw, true) : null;
+        if (is_array($parsed) && isset($parsed['start'], $parsed['count'])) {
+            $data = $parsed;
+        }
+        if (($now - (int)$data['start']) > $windowSec) {
+            $data = ['start' => $now, 'count' => 0];
+        }
+    }
+    $data['count'] = (int)$data['count'] + 1;
+    @file_put_contents($file, json_encode($data), LOCK_EX);
+    return $data['count'] <= $limit;
+}
 
 // --- 2. Input Handling and Routing ---
 $input_json = file_get_contents('php://input');
@@ -38,9 +62,11 @@ try {
     
     switch ($action) {
         case 'register_user':
+            if (!rateLimit('register_user')) { http_response_code(429); $response = ["success"=>false, "message"=>"Too many attempts. Try later."]; break; }
             $response = handleRegistration($conn, $input_data);
             break;
         case 'login_user':
+            if (!rateLimit('login_user')) { http_response_code(429); $response = ["success"=>false, "message"=>"Too many attempts. Try later."]; break; }
             $response = handleLogin($conn, $input_data);
             break;
         default:
@@ -50,7 +76,8 @@ try {
     }
 
 } catch (Exception $e) {
-    $response = array("success" => false, "message" => "Server Error: " . $e->getMessage());
+    error_log('Auth server error: ' . $e->getMessage());
+    $response = array("success" => false, "message" => "Server Error. Please try again later.");
     http_response_code(500);
 } finally {
     if (isset($conn)) {
@@ -68,7 +95,8 @@ exit;
 function handleRegistration($conn, $data) {
     $email = filter_var($data['email'] ?? '', FILTER_VALIDATE_EMAIL);
     $password = $data['password'] ?? '';
-    $name = $data['name'] ?? 'Ztrax User'; // fixed: $input → $data
+    $nameRaw = trim((string)($data['name'] ?? 'Ztrax User'));
+    $name = mb_substr(preg_replace('/[^\p{L}0-9 ._\-]/u', '', $nameRaw), 0, 64) ?: 'Ztrax User';
     $referral_code = strtoupper(trim($data['referral_code'] ?? ''));
 
     if (!$email || empty($password)) {
@@ -181,11 +209,16 @@ function handleLogin($conn, $data) {
         return array("success" => false, "message" => "Access denied. Your account has been blocked.");
     }
 
+    // Issue auth token and set secure cookie
+    $token = createAuthToken($user['user_id'], $user['role']);
+    setAuthCookie($token);
+
     http_response_code(200);
     return array(
         "success" => true, 
         "message" => "Login successful.", 
         "user_id" => $user['user_id'],
-        "role" => $user['role']
+        "role" => $user['role'],
+        "token" => $token
     );
 }

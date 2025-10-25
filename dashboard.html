@@ -357,6 +357,7 @@
                     const response = await fetch(PHP_API_ENDPOINT, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
+                        credentials: 'same-origin',
                         body: JSON.stringify(payload)
                     });
                     const text = await response.text();
@@ -386,31 +387,30 @@
             }
         }
 
-        // Add Balance - opens new tab to create_order.php
+        // Add Balance - open new tab via POST (hide query params)
         window.createTopupOrder = () => {
             const input = document.getElementById('topup-amount');
             const amt = parseFloat(input?.value || '0');
             if (!(amt > 0)) { showMessage('Enter a valid amount.', 'error'); return; }
             const uid = String(window.currentUserId || localStorage.getItem('ztrax_user_id') || '');
-            const ret = `${window.location.origin}/payment_return.php?byte_order_status=BYTE37091761364125`;
-            const params = new URLSearchParams({ amount: String(amt), remark1: uid, remark2: 'topup', redirect_url: ret });
-            const url = `create_order.php?${params.toString()}`;
-            window.open(url, '_blank');
+            const ret = `${window.location.origin}/payment_return.php`;
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = 'create_order.php';
+            form.target = '_blank';
+            const f = (name, value) => { const i = document.createElement('input'); i.type = 'hidden'; i.name = name; i.value = value; form.appendChild(i); };
+            f('amount', String(amt));
+            f('remark1', uid);
+            f('remark2', 'topup');
+            f('redirect_url', ret);
+            document.body.appendChild(form);
+            form.submit();
+            form.remove();
             const msg = document.getElementById('topup-order-msg');
             if (msg) msg.textContent = `Creating payment order for ₹${amt.toFixed(2)}...`;
         };
 
-        window.createTopupOrder = async () => {
-            const amt = parseFloat(document.getElementById('topup-amount')?.value || '0');
-            const msg = document.getElementById('topup-order-msg');
-            if (!(amt > 0)) { showMessage('Enter a valid amount.', 'error'); return; }
-            // Open payment order page in a new tab
-            const uid2 = String(window.currentUserId || localStorage.getItem('ztrax_user_id') || '');
-            const ret2 = `${window.location.origin}/payment_return.php?byte_order_status=BYTE37091761364125`;
-            const params2 = new URLSearchParams({ amount: String(amt), remark1: uid2, remark2: 'topup', redirect_url: ret2 });
-            window.open(`create_order.php?${params2.toString()}`,'_blank');
-            if (msg) msg.textContent = `Redirected to payment page for ₹${amt.toFixed(2)}.`;
-        };
+        
 
         window.checkRole = (requiredRole) => {
             const role = window.userRole;

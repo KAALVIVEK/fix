@@ -3,22 +3,16 @@
 // ZTRAX DASHBOARD API - SECURE PHP BACKEND
 // =========================================================================
 
-// Set headers for CORS and JSON response
-header("Access-Control-Allow-Origin: *");
-header("Access-Control-Allow-Methods: POST, GET, OPTIONS");
-header("Access-Control-Allow-Headers: Content-Type, Authorization");
-header("Content-Type: application/json; charset=UTF-8");
+require_once __DIR__ . '/config.php';
+
+applyCors(true);
+applySecurityHeaders('application/json');
 
 // Handle preflight OPTIONS request
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
-    exit(0);
+    http_response_code(204);
+    exit;
 }
-
-// --- 1. DATABASE CONFIGURATION (LIVE CREDENTIALS) ---
-define('DB_HOST', 'localhost');
-define('DB_USER', 'u346622393_vivek');
-define('DB_PASS', 'Seth#2009');
-define('DB_NAME', 'u346622393_vivek');
 
 // --- 2. CORE UTILITIES ---
 
@@ -170,7 +164,7 @@ function checkRole($currentRole, $requiredRole) {
 }
 
 
-// --- 3. INPUT HANDLING ---
+// --- 3. INPUT HANDLING + AUTHENTICATION ---
 $inputJSON = file_get_contents('php://input');
 $input = json_decode($inputJSON, true);
 if (!is_array($input)) { $input = $_POST ?? []; }
@@ -187,8 +181,25 @@ if (!$action) {
     exit();
 }
 
-$user_id = $input['user_id'] ?? null;
-$role = $input['role'] ?? null;
+// Prefer signed token over client-passed ids
+$token = getTokenFromRequest();
+$claims = verifyAuthToken($token);
+if ($claims) {
+    $user_id = (string)$claims['uid'];
+    $role = (string)$claims['role'];
+} else {
+    // Fallback to explicit fields only for a very small subset of public actions
+    $user_id = $input['user_id'] ?? null;
+    $role = $input['role'] ?? null;
+}
+
+// Require token for all sensitive actions
+$publicActions = ['get_service_status', 'api_create_license', 'api_reset_license', 'api_delete_license'];
+if (!$claims && !in_array($action, $publicActions, true)) {
+    http_response_code(401);
+    echo json_encode(['success' => false, 'message' => 'Unauthorized. Please login again.']);
+    exit();
+}
 
 // --- 4. API ROUTING ---
 try {
@@ -369,7 +380,8 @@ try {
     }
 } catch (Exception $e) {
     http_response_code(500);
-    echo json_encode(['success' => false, 'message' => 'Server Error: ' . $e->getMessage()]);
+    error_log('Dashboard API error: ' . $e->getMessage());
+    echo json_encode(['success' => false, 'message' => 'Server Error. Please try again later.']);
 }
 
 
@@ -445,8 +457,10 @@ function getLicenseFilterSQL($current_user_id, $current_role) {
         while ($row = $result->fetch_assoc()) {
             $managed_ids[] = $row['user_id'];
         }
-        $in_clause = implode("','", $managed_ids);
-        return ["WHERE creator_id IN ('$in_clause')", []];
+        $stmt->close();
+        if (empty($managed_ids)) { return ['WHERE 0=1', []]; }
+        $placeholders = implode(',', array_fill(0, count($managed_ids), '?'));
+        return ["WHERE creator_id IN ($placeholders)", $managed_ids];
         
     } else {
         return ['WHERE creator_id = ?', [$current_user_id]];
@@ -474,11 +488,12 @@ function loadLicenses($user_id, $role) {
     
     try {
         if (!empty($params)) {
+            $types = str_repeat('s', count($params));
             $stmt = $conn->prepare($sql);
             if (!$stmt) {
                 throw new Exception("SQL Prepare failed: " . $conn->error);
             }
-            $stmt->bind_param(str_repeat('s', count($params)), ...$params);
+            $stmt->bind_param($types, ...$params);
             $stmt->execute();
             $result = $stmt->get_result();
             $stmt->close();
