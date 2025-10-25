@@ -46,7 +46,7 @@ if ($redirectUrlParam === '') {
         $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
         $base = rtrim(dirname($_SERVER['SCRIPT_NAME'] ?? '/'), '/\\');
         if ($base === '') { $base = '/'; }
-        return $scheme . '://' . $host . rtrim($base, '/') . '/dashboard.html';
+        return $scheme . '://' . $host . rtrim($base, '/') . '/dashboard';
     })();
 }
 
