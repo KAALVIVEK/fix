@@ -111,24 +111,44 @@ try {
             $sel->close();
             $dbAmount = isset($row['amount']) ? (float)$row['amount'] : 0.0;
             $userId = isset($row['user_id']) ? (string)$row['user_id'] : '';
+            $prevStatus = isset($row['status']) ? (string)$row['status'] : '';
             $useAmount = ($amount > 0 ? $amount : $dbAmount);
-            // Do not attempt to parse logs for amounts anymore (avoid query leakage)
 
-            // Mark success and upsert mapping
-            $ins = $conn->prepare("INSERT INTO payments (order_id, user_id, amount, status) VALUES (?, ?, ?, 'SUCCESS') ON DUPLICATE KEY UPDATE status='SUCCESS'");
-            $ins->bind_param('ssd', $orderId, $userId, $useAmount);
-            $ins->execute();
-            $ins->close();
-
-            if ($userId !== '' && $useAmount > 0) {
-                $credit = $conn->prepare('UPDATE users SET balance = balance + ? WHERE user_id = ?');
-                $credit->bind_param('ds', $useAmount, $userId);
-                $credit->execute();
-                $credit->close();
+            // Idempotency: if already success, do not credit again
+            if ($prevStatus === 'SUCCESS') {
                 $ok = true;
-                $msg = 'Payment successful. Balance credited.';
+                $msg = 'Payment already processed.';
             } else {
-                $msg = 'Payment successful, but missing user/amount for credit.';
+                // Fallback: allow uid from query if mapping missing and user exists
+                if ($userId === '') {
+                    $maybeUid = normalize('remark1', $q);
+                    if ($maybeUid === '' && isset($q['uid'])) { $maybeUid = trim((string)$q['uid']); }
+                    if ($maybeUid !== '') {
+                        $chk = $conn->prepare('SELECT 1 FROM users WHERE user_id = ? LIMIT 1');
+                        $chk->bind_param('s', $maybeUid);
+                        $chk->execute();
+                        $exists = (bool)$chk->get_result()->fetch_row();
+                        $chk->close();
+                        if ($exists) { $userId = $maybeUid; }
+                    }
+                }
+
+                // Mark success and upsert mapping
+                $ins = $conn->prepare("INSERT INTO payments (order_id, user_id, amount, status) VALUES (?, ?, ?, 'SUCCESS') ON DUPLICATE KEY UPDATE status='SUCCESS'");
+                $ins->bind_param('ssd', $orderId, $userId, $useAmount);
+                $ins->execute();
+                $ins->close();
+
+                if ($userId !== '' && $useAmount > 0) {
+                    $credit = $conn->prepare('UPDATE users SET balance = balance + ? WHERE user_id = ?');
+                    $credit->bind_param('ds', $useAmount, $userId);
+                    $credit->execute();
+                    $ok = $credit->affected_rows > 0;
+                    $credit->close();
+                    $msg = $ok ? 'Payment successful. Balance credited.' : 'Payment recorded, user not credited (user not found).';
+                } else {
+                    $msg = 'Payment recorded, but missing user/amount for credit.';
+                }
             }
             $conn->close();
         } catch (Throwable $e) {
