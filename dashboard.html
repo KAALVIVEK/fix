@@ -335,6 +335,7 @@
             // Assign global window variables
             window.currentUserId = userId;
             window.userRole = role;
+            if (typeof ensureClientKey === 'function') { try { ensureClientKey(); } catch (_) {} }
             return true;
         }
 
