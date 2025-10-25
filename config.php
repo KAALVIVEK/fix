@@ -296,7 +296,6 @@ function notifyTelegram(string $text, array $opts = []): void {
     $prefs = tgGetPrefs();
     $force = isset($opts['force']) ? (bool)$opts['force'] : false;
     if (!$force && (isset($prefs['alerts_enabled']) && $prefs['alerts_enabled'] === false)) { return; }
-    if (!function_exists('curl_init')) { return; }
     $url = 'https://api.telegram.org/bot' . TG_BOT_TOKEN . '/sendMessage';
     $payload = [
         'chat_id' => TG_CHAT_ID,
@@ -305,13 +304,18 @@ function notifyTelegram(string $text, array $opts = []): void {
         'disable_web_page_preview' => true,
     ];
     if (isset($opts['silent']) && $opts['silent'] === true) { $payload['disable_notification'] = true; }
-    $ch = curl_init($url);
-    curl_setopt($ch, CURLOPT_POST, true);
-    curl_setopt($ch, CURLOPT_POSTFIELDS, $payload);
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_TIMEOUT, 5);
-    @curl_exec($ch);
-    @curl_close($ch);
+    if (function_exists('curl_init')) {
+        $ch = curl_init($url);
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, $payload);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 5);
+        @curl_exec($ch);
+        @curl_close($ch);
+    } else {
+        $optsCtx = [ 'http' => [ 'method' => 'POST', 'header' => 'Content-Type: application/x-www-form-urlencoded', 'content' => http_build_query($payload), 'timeout' => 5 ] ];
+        @file_get_contents($url, false, stream_context_create($optsCtx));
+    }
 }
 
 function noncesDir(): string {
