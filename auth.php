@@ -230,12 +230,7 @@ function handleLogin($conn, $data) {
         "role" => $user['role'],
         "token" => $token
     );
-    // If client uploaded an encryption key earlier, encrypt the response
-    $enc = encryptJsonForClient($user['user_id'], json_encode($payload, JSON_UNESCAPED_SLASHES));
-    if ($enc !== null) {
-        echo $enc; // already JSON string
-        exit;
-    }
+    // For compatibility, do NOT encrypt login response. Return plain JSON.
     return $payload;
 }
 
