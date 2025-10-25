@@ -39,7 +39,14 @@ elseif (isset($update['callback_query'])) { $chatId = $update['callback_query'][
 if (!$chatId) { echo json_encode(['ok'=>true]); exit; }
 
 // Only respond to admin chat
-if ((string)$chatId !== (string)TG_CHAT_ID) { echo json_encode(['ok'=>true]); exit; }
+// If not admin, allow minimal replies for /start and /whoami so you can learn the chat id
+if ((string)$chatId !== (string)TG_CHAT_ID) {
+  if (preg_match('/^\/(start|whoami)/i', $text)) {
+    tg_send($chatId, "🔒 This bot is private.\nYour chat id: <code>" . htmlspecialchars((string)$chatId, ENT_QUOTES) . "</code>");
+  }
+  echo json_encode(['ok'=>true]);
+  exit;
+}
 
 // Simple commands
 // Command keyboard
