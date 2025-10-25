@@ -107,7 +107,7 @@ function applyCors(bool $allowCredentials = true): void {
 function b64u(string $data): string { return rtrim(strtr(base64_encode($data), '+/', '-_'), '='); }
 function b64u_dec(string $data): string { return base64_decode(strtr($data, '-_', '+/')); }
 
-function createAuthToken(string $userId, string $role, int $ttlSeconds = 7200): string {
+function createAuthToken(string $userId, string $role, int $ttlSeconds = 1800): string {
     $header = b64u(json_encode(['alg' => 'HS256', 'typ' => 'JWT']));
     $payload = b64u(json_encode(['uid' => $userId, 'role' => $role, 'iat' => time(), 'exp' => time() + $ttlSeconds]));
     $sig = hash_hmac('sha256', $header . '.' . $payload, APP_SECRET, true);
@@ -130,12 +130,12 @@ function verifyAuthToken(?string $token): ?array {
 function setAuthCookie(string $token): void {
     $secure = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off');
     setcookie('ztrax_token', $token, [
-        'expires' => time() + 7200,
+        'expires' => time() + 1800,
         'path' => '/',
         'domain' => '',
         'secure' => $secure,
         'httponly' => true,
-        'samesite' => 'Lax',
+        'samesite' => 'Strict',
     ]);
 }
 
