@@ -274,12 +274,12 @@
                         try {
                             const parsed = JSON.parse(text);
                             if (parsed && parsed.enc === 1 && parsed.ct && parsed.iv && parsed.tag) {
-                                // login response may be encrypted after key set; decrypt using dashboard helper later
-                                result = parsed; // allow caller to handle redirect and fetch dashboard
+                                // Treat encrypted login response as success; cookie is set
+                                result = { success: true, encrypted: true, envelope: parsed };
                             } else {
-                                result = parsed;
+                                result = parsed || {};
                             }
-                        } catch (_) {}
+                        } catch (_) { result = {}; }
                     }
                     if (!response.ok) {
                         const backendMsg = (result && (result.message || result.error)) || `HTTP ${response.status}`;
@@ -308,10 +308,10 @@
                 if (window.currentMode === 'login') {
                     const result = await fetchAPI('login_user', { email, password });
                     
-                    if (result.success) {
-                        // Store minimal client state; token is set via HttpOnly cookie
-                        localStorage.setItem('ztrax_user_id', result.user_id);
-                        localStorage.setItem('ztrax_role', result.role);
+                    if (result && (result.success || result.encrypted)) {
+                        // Store minimal client state if present; token is set via HttpOnly cookie
+                        if (result.user_id) localStorage.setItem('ztrax_user_id', result.user_id);
+                        if (result.role) localStorage.setItem('ztrax_role', result.role);
                         
                         let message = `[STATUS: AUTH_SUCCESS] Access granted. Redirecting to console...`;
                         messageBox.textContent = message;
