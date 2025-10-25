@@ -260,8 +260,31 @@ define('TG_CHAT_ID', env('TG_CHAT_ID', '8074401069'));
 define('TG_LOW_STOCK_THRESHOLD', (int)(env('TG_LOW_STOCK_THRESHOLD', '5') ?? '5'));
 define('TG_WEBHOOK_SECRET', env('TG_WEBHOOK_SECRET', ''));
 
+function tgPrefsPath(): string {
+    $dir = __DIR__ . '/storage';
+    if (!is_dir($dir)) { @mkdir($dir, 0775, true); }
+    return $dir . '/telegram_prefs.json';
+}
+
+function tgGetPrefs(): array {
+    $path = tgPrefsPath();
+    if (is_readable($path)) {
+        $raw = @file_get_contents($path);
+        $j = $raw ? json_decode($raw, true) : null;
+        if (is_array($j)) { return $j; }
+    }
+    return [ 'alerts_enabled' => true ];
+}
+
+function tgSetPrefs(array $prefs): void {
+    @file_put_contents(tgPrefsPath(), json_encode($prefs, JSON_UNESCAPED_SLASHES), LOCK_EX);
+}
+
 function notifyTelegram(string $text, array $opts = []): void {
     if (TG_BOT_TOKEN === '' || TG_CHAT_ID === '') { return; }
+    $prefs = tgGetPrefs();
+    $force = isset($opts['force']) ? (bool)$opts['force'] : false;
+    if (!$force && (isset($prefs['alerts_enabled']) && $prefs['alerts_enabled'] === false)) { return; }
     $url = 'https://api.telegram.org/bot' . TG_BOT_TOKEN . '/sendMessage';
     $payload = [
         'chat_id' => TG_CHAT_ID,

@@ -42,37 +42,48 @@ if (!$chatId) { echo json_encode(['ok'=>true]); exit; }
 if ((string)$chatId !== (string)TG_CHAT_ID) { echo json_encode(['ok'=>true]); exit; }
 
 // Simple commands
+// Command keyboard
+$kb = [ 'keyboard' => [
+  [ ['text'=>'📊 Status'], ['text'=>'📦 Stock'] ],
+  [ ['text'=>'🔔 Alerts ON'], ['text'=>'🔕 Alerts OFF'] ],
+], 'resize_keyboard' => true, 'one_time_keyboard' => false ];
+
 switch (true) {
-  case preg_match('/^\/start/i', $text):
-    tg_send($chatId, "Welcome, admin. Use /status, /stock, /help");
+  case preg_match('/^\/(start|help)/i', $text):
+    tg_send($chatId, "👋 <b>Welcome, admin</b>\nUse the keyboard or commands:\n/status, /stock, /alertson, /alertsoff", $kb);
     break;
-  case preg_match('/^\/help/i', $text):
-    tg_send($chatId, "Commands:\n/status - service status\n/stock - show stock summary\n" );
-    break;
-  case preg_match('/^\/status/i', $text):
+  case preg_match('/^\/(status|Status)|^📊/u', $text):
     try {
       $conn = new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME);
-      $ok = $conn->connect_error ? 'DB: DOWN' : 'DB: OK';
+      $ok = $conn->connect_error ? '❌ DB: DOWN' : '✅ DB: OK';
       $res = $conn->query("SELECT COUNT(*) AS users FROM users");
       $users = ($res && ($row = $res->fetch_assoc())) ? (int)$row['users'] : 0;
-      tg_send($chatId, "Status:\n$ok\nUsers: $users\nTime: " . date('c'));
+      tg_send($chatId, "📊 <b>Status</b>\n$ok\n👤 Users: $users\n🕒 " . date('H:i:s T'), $kb);
       if ($conn) { $conn->close(); }
-    } catch (Throwable $e) { tg_send($chatId, 'Error: ' . $e->getMessage()); }
+    } catch (Throwable $e) { tg_send($chatId, 'Error: ' . $e->getMessage(), $kb); }
     break;
-  case preg_match('/^\/stock/i', $text):
+  case preg_match('/^\/(stock|Stock)|^📦/u', $text):
     try {
       $conn = new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME);
       $sys = 0; $res = $conn->query("SELECT COUNT(*) AS c FROM system_keys WHERE status='Generated'");
       if ($res && ($row = $res->fetch_assoc())) { $sys = (int)$row['c']; }
-      $lines = [ 'System pool: ' . $sys ];
+      $lines = [ '🧱 System pool: ' . $sys ];
       $q = $conn->query("SELECT p.name, COUNT(k.id) AS c FROM keys_pool k JOIN products p ON p.id = k.product_id WHERE k.is_used = 0 GROUP BY k.product_id ORDER BY p.name");
-      if ($q) { while ($r = $q->fetch_assoc()) { $lines[] = $r['name'] . ': ' . (int)$r['c']; } }
-      tg_send($chatId, "Unused stock:\n" . implode("\n", $lines));
+      if ($q) { while ($r = $q->fetch_assoc()) { $lines[] = '📦 ' . $r['name'] . ': ' . (int)$r['c']; } }
+      tg_send($chatId, "📦 <b>Unused stock</b>\n" . implode("\n", $lines), $kb);
       if ($conn) { $conn->close(); }
-    } catch (Throwable $e) { tg_send($chatId, 'Error: ' . $e->getMessage()); }
+    } catch (Throwable $e) { tg_send($chatId, 'Error: ' . $e->getMessage(), $kb); }
+    break;
+  case preg_match('/^\/(alertson|Alerts ON)|^🔔/u', $text):
+    $prefs = tgGetPrefs(); $prefs['alerts_enabled'] = true; tgSetPrefs($prefs);
+    tg_send($chatId, '🔔 Alerts <b>enabled</b>.', $kb);
+    break;
+  case preg_match('/^\/(alertsoff|Alerts OFF)|^🔕/u', $text):
+    $prefs = tgGetPrefs(); $prefs['alerts_enabled'] = false; tgSetPrefs($prefs);
+    tg_send($chatId, '🔕 Alerts <b>disabled</b>.', $kb);
     break;
   default:
-    tg_send($chatId, 'Unknown command. Try /help');
+    tg_send($chatId, '❓ Unknown command. Use /help', $kb);
 }
 
 echo json_encode(['ok'=>true]);
