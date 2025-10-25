@@ -241,6 +241,10 @@ function handleLogin($conn, $data) {
 
 function handleSetClientKey($conn, $data) {
     $uid = isset($data['user_id']) ? (string)$data['user_id'] : '';
+    if ($uid === '') {
+        $claims = verifyAuthToken(getTokenFromRequest());
+        if (is_array($claims) && isset($claims['uid'])) { $uid = (string)$claims['uid']; }
+    }
     $b64 = isset($data['client_key']) ? (string)$data['client_key'] : '';
     if ($uid === '' || $b64 === '') { http_response_code(400); return [ 'success'=>false, 'message'=>'Missing user_id/client_key' ]; }
     $ok = setClientEncKeyForUid($uid, $b64);
