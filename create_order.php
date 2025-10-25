@@ -71,11 +71,12 @@ try {
 // Append local hints and signature to redirect_url for reliable and safe return
 try {
     $add = [ 'local_order_id' => $orderId ];
+    if ($remark1 !== '') { $add['uid'] = $remark1; }
     // Use already-sanitized $amount to avoid undefined variable warnings
     $amtStr = number_format($amount, 2, '.', '');
     if (is_string($amtStr) && preg_match('/^\d+\.(\d{2})$/', $amtStr)) { $add['amt'] = $amtStr; }
-    // Add HMAC signature that payment_return.php will verify (no user id included)
-    $add['sig'] = b64u(hash_hmac('sha256', $orderId . '|' . ($add['amt'] ?? '0.00'), APP_SECRET, true));
+    // Add HMAC signature that payment_return.php will verify (binds order, uid, amount)
+    $add['sig'] = b64u(hash_hmac('sha256', $orderId . '|' . (($add['uid'] ?? '')) . '|' . ($add['amt'] ?? '0.00'), APP_SECRET, true));
     $redirectUrlParam .= (strpos($redirectUrlParam, '?') !== false ? '&' : '?') . http_build_query($add);
 } catch (Throwable $e) { /* ignore */ }
 

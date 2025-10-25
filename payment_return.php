@@ -75,7 +75,9 @@ try {
 
     // Verify HMAC signature if present (we will add it during create order)
     $sig = isset($q['sig']) ? (string)$q['sig'] : '';
-    $toSign = $orderId . '|' . number_format($amount, 2, '.', '');
+    $uidForSig = normalize('remark1', $q);
+    if ($uidForSig === '' && isset($q['uid'])) { $uidForSig = trim((string)$q['uid']); }
+    $toSign = $orderId . '|' . $uidForSig . '|' . number_format($amount, 2, '.', '');
     $calc = b64u(hash_hmac('sha256', $toSign, APP_SECRET, true));
     if (!$sig || !hash_equals($calc, $sig)) {
         // If signature missing or invalid, do not credit; just redirect back with failure
