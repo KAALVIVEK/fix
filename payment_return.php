@@ -89,8 +89,8 @@ try {
 
     if ($orderId === '') { throw new Exception('Missing order_id'); }
 
-    // Only credit on success-equivalent statuses
-    $success = in_array($status, ['SUCCESS','TXN_SUCCESS','COMPLETED'], true);
+    // Only credit on success-equivalent statuses; if gateway doesn't send status, treat as success when signature is valid
+    $success = ($status === '' || in_array($status, ['SUCCESS','TXN_SUCCESS','COMPLETED'], true));
 
     // Record return event
     logPaymentEvent('payment_return.received', [
@@ -134,7 +134,7 @@ try {
                 }
 
                 // Mark success and upsert mapping
-                $ins = $conn->prepare("INSERT INTO payments (order_id, user_id, amount, status) VALUES (?, ?, ?, 'SUCCESS') ON DUPLICATE KEY UPDATE status='SUCCESS'");
+                $ins = $conn->prepare("INSERT INTO payments (order_id, user_id, amount, status) VALUES (?, ?, ?, 'SUCCESS') ON DUPLICATE KEY UPDATE status=VALUES(status), user_id=COALESCE(VALUES(user_id), user_id), amount=IF(VALUES(amount)>0, VALUES(amount), amount)");
                 $ins->bind_param('ssd', $orderId, $userId, $useAmount);
                 $ins->execute();
                 $ins->close();
