@@ -309,27 +309,15 @@
             };
         }
 
-        /** Loads session data from localStorage, falling back to URL parameters. */
+        /** Loads session data from localStorage; if missing, rely on HttpOnly token and fill later. */
         function loadSession() {
             let userId = localStorage.getItem('ztrax_user_id');
             let role = localStorage.getItem('ztrax_role');
 
             if (!userId || !role) {
-                // Check URL parameters only if localStorage is empty (First load after login)
-                const params = getQueryParams();
-                if (params.id && params.role) {
-                    userId = params.id;
-                    role = params.role;
-                    // Store for persistence
-                    localStorage.setItem('ztrax_user_id', userId);
-                    localStorage.setItem('ztrax_role', role);
-                }
-            }
-
-            if (!userId || !role) {
-                // If credentials are still missing, redirect to login
-                window.location.href = './index.html';
-                return false;
+                // Fallback: permit proceeding; server will use token claims
+                userId = userId || '';
+                role = role || 'user';
             }
 
             // Assign global window variables

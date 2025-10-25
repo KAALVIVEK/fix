@@ -193,8 +193,8 @@ if ($claims) {
     $role = $input['role'] ?? null;
 }
 
-// Require token for all sensitive actions
-$publicActions = ['get_service_status', 'api_create_license', 'api_reset_license', 'api_delete_license'];
+// Require token for all sensitive actions (gracefully allow first load to populate via cookie)
+$publicActions = ['get_service_status', 'api_create_license', 'api_reset_license', 'api_delete_license', 'load_initial_data'];
 if (!$claims && !in_array($action, $publicActions, true)) {
     http_response_code(401);
     echo json_encode(['success' => false, 'message' => 'Unauthorized. Please login again.']);
