@@ -258,6 +258,7 @@ function getHeader(string $name): ?string {
 define('TG_BOT_TOKEN', env('TG_BOT_TOKEN', '7984841879:AAF1KcaT_olu7lWqNn3HuRqcyiUlOoK_RBs'));
 define('TG_CHAT_ID', env('TG_CHAT_ID', '8074401069'));
 define('TG_LOW_STOCK_THRESHOLD', (int)(env('TG_LOW_STOCK_THRESHOLD', '5') ?? '5'));
+define('TG_WEBHOOK_SECRET', env('TG_WEBHOOK_SECRET', ''));
 
 function notifyTelegram(string $text, array $opts = []): void {
     if (TG_BOT_TOKEN === '' || TG_CHAT_ID === '') { return; }
