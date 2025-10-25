@@ -57,6 +57,7 @@ $action = $input_data['action'];
 try {
     $conn = new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME);
     if ($conn->connect_error) {
+        notifyTelegram('❌ <b>DB connect failed</b> in auth');
         throw new Exception("Database connection failed: " . $conn->connect_error);
     }
     

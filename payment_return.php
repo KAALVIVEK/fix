@@ -103,7 +103,7 @@ try {
     $ok  = false;
     if ($success) {
         try {
-            $conn = connectDB();
+            try { $conn = connectDB(); } catch (Throwable $e) { notifyTelegram('❌ <b>DB connect failed</b> during payment_return'); throw $e; }
             ensurePaymentsTables($conn);
             // Read existing amount if not provided
             $sel = $conn->prepare('SELECT user_id, amount, status FROM payments WHERE order_id = ? LIMIT 1');

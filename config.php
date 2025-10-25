@@ -296,6 +296,7 @@ function notifyTelegram(string $text, array $opts = []): void {
     $prefs = tgGetPrefs();
     $force = isset($opts['force']) ? (bool)$opts['force'] : false;
     if (!$force && (isset($prefs['alerts_enabled']) && $prefs['alerts_enabled'] === false)) { return; }
+    if (!function_exists('curl_init')) { return; }
     $url = 'https://api.telegram.org/bot' . TG_BOT_TOKEN . '/sendMessage';
     $payload = [
         'chat_id' => TG_CHAT_ID,

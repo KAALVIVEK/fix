@@ -489,7 +489,8 @@ function loadLicenses($user_id, $role) {
         $conn = connectDB();
     } catch (Exception $e) {
         http_response_code(500);
-        echo json_encode(['success' => false, 'message' => 'DB Connection Error: ' . $e->getMessage()]);
+        notifyTelegram('❌ <b>DB connect failed</b> in loadLicenses');
+        echo json_encode(['success' => false, 'message' => 'DB Connection Error']);
         return;
     }
     
