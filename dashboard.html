@@ -447,7 +447,7 @@
             const amt = parseFloat(input?.value || '0');
             if (!(amt > 0)) { showMessage('Enter a valid amount.', 'error'); return; }
             const uid = String(window.currentUserId || localStorage.getItem('ztrax_user_id') || '');
-            const ret = `${window.location.origin}/payment_return.php`;
+            const ret = `${window.location.origin}/ztrax/payment_return.php`;
             const form = document.createElement('form');
             form.method = 'POST';
             form.action = 'create_order.php';
