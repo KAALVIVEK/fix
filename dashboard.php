@@ -166,6 +166,20 @@ function checkRole($currentRole, $requiredRole) {
 
 // --- 3. INPUT HANDLING + AUTHENTICATION ---
 $inputJSON = file_get_contents('php://input');
+// If client provided signed request, verify signature to resist tampering
+$rawUid = $_POST['user_id'] ?? null; // fallback; real uid from token below
+if (isset($_SERVER['HTTP_X_CLIENT_TS'])) {
+    $uidForSign = $rawUid ?? '';
+    // If token is present, prefer token uid for signing scope
+    $tokTmp = getTokenFromRequest();
+    $clTmp = verifyAuthToken($tokTmp);
+    if (is_array($clTmp) && isset($clTmp['uid'])) { $uidForSign = (string)$clTmp['uid']; }
+    if (!verifySignedRequest($uidForSign, $inputJSON)) {
+        http_response_code(401);
+        echo json_encode(['success'=>false,'message'=>'Invalid signature.']);
+        exit();
+    }
+}
 $input = json_decode($inputJSON, true);
 if (!is_array($input)) { $input = $_POST ?? []; }
 

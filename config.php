@@ -66,6 +66,11 @@ function applySecurityHeaders(string $contentType = 'application/json'): void {
     header('X-Frame-Options: DENY');
     header('Referrer-Policy: no-referrer');
     header('X-XSS-Protection: 0'); // modern browsers ignore; CSP preferred
+    // HSTS for HTTPS deployments (or force via env)
+    $isHttps = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off');
+    if ($isHttps || env('FORCE_HSTS')) {
+        header('Strict-Transport-Security: max-age=31536000; includeSubDomains; preload');
+    }
     if ($contentType) {
         header('Content-Type: ' . $contentType . '; charset=UTF-8');
     }
@@ -220,4 +225,67 @@ function encryptJsonForClient(string $uid, string $json): ?string {
         'tag' => b64u($tag),
     ];
     return json_encode($env, JSON_UNESCAPED_SLASHES);
+}
+
+// -----------------------------------------------------------------------------
+// Request signing (HMAC-SHA256) to resist tampering/replay
+// Client must send headers: X-Client-TS, X-Client-Nonce, X-Client-Sign (base64url)
+// Signature is HMAC over "{ts}|{nonce}|{rawBody}" using the stored client key
+// -----------------------------------------------------------------------------
+
+function getHeader(string $name): ?string {
+    $key = 'HTTP_' . strtoupper(str_replace('-', '_', $name));
+    return isset($_SERVER[$key]) ? (string)$_SERVER[$key] : null;
+}
+
+function noncesDir(): string {
+    $dir = __DIR__ . '/storage/nonces';
+    if (!is_dir($dir)) { @mkdir($dir, 0775, true); }
+    return $dir;
+}
+
+function noncePath(string $uid): string {
+    $safe = preg_replace('/[^A-Za-z0-9._\-]/', '_', $uid);
+    return noncesDir() . '/' . $safe . '.json';
+}
+
+function checkAndStoreNonce(string $uid, string $nonce, int $ts, int $ttlSeconds = 600): bool {
+    $path = noncePath($uid);
+    $now = time();
+    $list = [];
+    if (is_file($path)) {
+        $raw = @file_get_contents($path);
+        $parsed = $raw ? json_decode($raw, true) : null;
+        if (is_array($parsed)) { $list = $parsed; }
+    }
+    // Purge expired
+    $new = [];
+    foreach ($list as $n => $t) {
+        if (($now - (int)$t) <= $ttlSeconds) { $new[$n] = (int)$t; }
+    }
+    if (isset($new[$nonce])) { return false; }
+    $new[$nonce] = $ts;
+    // Bound size to avoid unbounded growth
+    if (count($new) > 500) { $new = array_slice($new, -400, null, true); }
+    @file_put_contents($path, json_encode($new), LOCK_EX);
+    return true;
+}
+
+function verifySignedRequest(string $uid, string $rawBody, int $skewSeconds = 180): bool {
+    if ($uid === '') { return false; }
+    $keyRaw = getClientEncKeyForUid($uid);
+    if ($keyRaw === null) { return false; }
+    $tsHeader = getHeader('X-Client-TS');
+    $nonce = getHeader('X-Client-Nonce');
+    $sigHeader = getHeader('X-Client-Sign');
+    if ($tsHeader === null || $nonce === null || $sigHeader === null) { return false; }
+    $ts = (int)$tsHeader;
+    $now = time();
+    if ($ts < $now - $skewSeconds || $ts > $now + $skewSeconds) { return false; }
+    // Replay guard
+    if (!checkAndStoreNonce($uid, $nonce, $ts, $skewSeconds * 2)) { return false; }
+    $data = $ts . '|' . $nonce . '|' . $rawBody;
+    $calc = hash_hmac('sha256', $data, $keyRaw, true);
+    $calcB64u = b64u($calc);
+    return hash_equals($calcB64u, $sigHeader);
 }

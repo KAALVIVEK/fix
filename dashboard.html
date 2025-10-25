@@ -357,7 +357,7 @@
                 try {
                     const response = await fetch(PHP_API_ENDPOINT, {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: await signedHeaders(JSON.stringify(payload)),
                         credentials: 'same-origin',
                         body: JSON.stringify(payload)
                     });
@@ -439,6 +439,26 @@
                 console.error('Decrypt failed', e);
                 return null;
             }
+        }
+
+        async function signedHeaders(body) {
+            const headers = { 'Content-Type': 'application/json' };
+            try {
+                const key = await ensureClientKey();
+                if (!key) return headers;
+                const ts = Math.floor(Date.now()/1000);
+                const nonceBytes = new Uint8Array(12); crypto.getRandomValues(nonceBytes);
+                const nonce = Array.from(nonceBytes).map(b=>b.toString(16).padStart(2,'0')).join('');
+                const enc = new TextEncoder();
+                const hmacKey = await crypto.subtle.importKey('raw', await crypto.subtle.exportKey('raw', key), { name:'HMAC', hash:'SHA-256' }, false, ['sign']);
+                const data = enc.encode(ts + '|' + nonce + '|' + body);
+                const sigBuf = await crypto.subtle.sign('HMAC', hmacKey, data);
+                const b64u = (buf) => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+                headers['X-Client-TS'] = String(ts);
+                headers['X-Client-Nonce'] = nonce;
+                headers['X-Client-Sign'] = b64u(sigBuf);
+            } catch (_) {}
+            return headers;
         }
 
         // Add Balance - open new tab via POST (hide query params)
