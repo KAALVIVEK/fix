@@ -410,7 +410,8 @@
             try {
                 const raw = new Uint8Array(32);
                 crypto.getRandomValues(raw);
-                clientCryptoKey = await crypto.subtle.importKey('raw', raw, { name: 'AES-GCM' }, false, ['decrypt']);
+                // Make extractable so we can reuse the same material for HMAC signing
+                clientCryptoKey = await crypto.subtle.importKey('raw', raw, { name: 'AES-GCM' }, true, ['decrypt']);
                 // Upload to server for this user
                 const b64u = (buf) => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
                 const exported = await crypto.subtle.exportKey('raw', clientCryptoKey);
@@ -454,7 +455,8 @@
                 const nonceBytes = new Uint8Array(12); crypto.getRandomValues(nonceBytes);
                 const nonce = Array.from(nonceBytes).map(b=>b.toString(16).padStart(2,'0')).join('');
                 const enc = new TextEncoder();
-                const hmacKey = await crypto.subtle.importKey('raw', await crypto.subtle.exportKey('raw', key), { name:'HMAC', hash:'SHA-256' }, false, ['sign']);
+                const raw = await crypto.subtle.exportKey('raw', key);
+                const hmacKey = await crypto.subtle.importKey('raw', raw, { name:'HMAC', hash:'SHA-256' }, false, ['sign']);
                 const data = enc.encode(ts + '|' + nonce + '|' + body);
                 const sigBuf = await crypto.subtle.sign('HMAC', hmacKey, data);
                 const b64u = (buf) => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
