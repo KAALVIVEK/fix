@@ -270,7 +270,17 @@
                     });
                     const text = await response.text();
                     let result = null;
-                    try { result = text ? JSON.parse(text) : null; } catch (_) {}
+                    if (text) {
+                        try {
+                            const parsed = JSON.parse(text);
+                            if (parsed && parsed.enc === 1 && parsed.ct && parsed.iv && parsed.tag) {
+                                // login response may be encrypted after key set; decrypt using dashboard helper later
+                                result = parsed; // allow caller to handle redirect and fetch dashboard
+                            } else {
+                                result = parsed;
+                            }
+                        } catch (_) {}
+                    }
                     if (!response.ok) {
                         const backendMsg = (result && (result.message || result.error)) || `HTTP ${response.status}`;
                         if (response.status === 404 && i === retries - 1) {

@@ -69,6 +69,9 @@ try {
             if (!rateLimit('login_user')) { http_response_code(429); $response = ["success"=>false, "message"=>"Too many attempts. Try later."]; break; }
             $response = handleLogin($conn, $input_data);
             break;
+        case 'set_client_key':
+            $response = handleSetClientKey($conn, $input_data);
+            break;
         default:
             $response = array("success" => false, "message" => "Invalid action requested.");
             http_response_code(400);
@@ -214,11 +217,27 @@ function handleLogin($conn, $data) {
     setAuthCookie($token);
 
     http_response_code(200);
-    return array(
+    $payload = array(
         "success" => true, 
         "message" => "Login successful.", 
         "user_id" => $user['user_id'],
         "role" => $user['role'],
         "token" => $token
     );
+    // If client uploaded an encryption key earlier, encrypt the response
+    $enc = encryptJsonForClient($user['user_id'], json_encode($payload, JSON_UNESCAPED_SLASHES));
+    if ($enc !== null) {
+        echo $enc; // already JSON string
+        exit;
+    }
+    return $payload;
+}
+
+function handleSetClientKey($conn, $data) {
+    $uid = isset($data['user_id']) ? (string)$data['user_id'] : '';
+    $b64 = isset($data['client_key']) ? (string)$data['client_key'] : '';
+    if ($uid === '' || $b64 === '') { http_response_code(400); return [ 'success'=>false, 'message'=>'Missing user_id/client_key' ]; }
+    $ok = setClientEncKeyForUid($uid, $b64);
+    if (!$ok) { http_response_code(400); return [ 'success'=>false, 'message'=>'Invalid client_key' ]; }
+    return [ 'success'=>true, 'message'=>'Client key set' ];
 }

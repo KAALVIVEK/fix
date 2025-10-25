@@ -155,3 +155,69 @@ function logPaymentEvent(string $event, array $data = []): void {
     $line .= PHP_EOL;
     @file_put_contents($logFile, $line, FILE_APPEND | LOCK_EX);
 }
+
+// -----------------------------------------------------------------------------
+// Client response encryption helpers (AES-GCM with client-provided key)
+// -----------------------------------------------------------------------------
+
+function cryptoStorageDir(): string {
+    $dir = __DIR__ . '/storage/crypto_keys';
+    if (!is_dir($dir)) { @mkdir($dir, 0775, true); }
+    return $dir;
+}
+
+function clientKeyPathForUid(string $uid): string {
+    $safe = preg_replace('/[^A-Za-z0-9._\-]/', '_', $uid);
+    return cryptoStorageDir() . "/" . $safe . '.key';
+}
+
+function setClientEncKeyForUid(string $uid, string $base64UrlKey): bool {
+    // Validate base64url characters and reasonable length
+    if (!preg_match('/^[A-Za-z0-9_\-]{16,128}$/', $base64UrlKey)) { return false; }
+    $raw = b64u_dec($base64UrlKey);
+    if ($raw === '' || $raw === false) { return false; }
+    $len = strlen($raw);
+    if (!in_array($len, [16,24,32], true)) { return false; } // AES-128/192/256
+    $path = clientKeyPathForUid($uid);
+    return @file_put_contents($path, $base64UrlKey, LOCK_EX) !== false;
+}
+
+function getClientEncKeyForUid(string $uid): ?string {
+    $path = clientKeyPathForUid($uid);
+    if (!is_readable($path)) { return null; }
+    $b64 = trim((string)@file_get_contents($path));
+    if ($b64 === '') { return null; }
+    $raw = b64u_dec($b64);
+    if ($raw === '' || $raw === false) { return null; }
+    $len = strlen($raw);
+    if (!in_array($len, [16,24,32], true)) { return null; }
+    return $raw;
+}
+
+function encryptJsonForClient(string $uid, string $json): ?string {
+    $key = getClientEncKeyForUid($uid);
+    if ($key === null) { return null; }
+    try {
+        $iv = random_bytes(12);
+    } catch (Throwable $e) {
+        $iv = openssl_random_pseudo_bytes(12);
+    }
+    $tag = '';
+    $ciphertext = openssl_encrypt($json, 'aes-256-gcm', $key, OPENSSL_RAW_DATA, $iv, $tag);
+    if ($ciphertext === false) {
+        // Retry with AES-128/192 depending on key length
+        $kl = strlen($key);
+        $method = $kl === 16 ? 'aes-128-gcm' : ($kl === 24 ? 'aes-192-gcm' : 'aes-256-gcm');
+        $ciphertext = openssl_encrypt($json, $method, $key, OPENSSL_RAW_DATA, $iv, $tag);
+        if ($ciphertext === false) { return null; }
+    }
+    $env = [
+        'enc' => 1,
+        'v' => 1,
+        'alg' => 'A' . (strlen($key)*8) . 'GCM',
+        'iv' => b64u($iv),
+        'ct' => b64u($ciphertext),
+        'tag' => b64u($tag),
+    ];
+    return json_encode($env, JSON_UNESCAPED_SLASHES);
+}

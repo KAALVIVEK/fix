@@ -436,7 +436,9 @@ function loadInitialData($user_id) {
         'recent_activity' => $activity
     ];
 
-    echo json_encode(['success' => true, 'data' => $data]);
+    $jsonResp = json_encode(['success' => true, 'data' => $data]);
+    $enc = encryptJsonForClient($user_id ?? '', $jsonResp);
+    echo $enc !== null ? $enc : $jsonResp;
     $conn->close();
 }
 
@@ -517,7 +519,9 @@ function loadLicenses($user_id, $role) {
         }
     }
     
-    echo json_encode(['success' => true, 'data' => $licenses]);
+    $jsonResp = json_encode(['success' => true, 'data' => $licenses]);
+    $enc = encryptJsonForClient($user_id ?? '', $jsonResp);
+    echo $enc !== null ? $enc : $jsonResp;
     $conn->close();
 }
 

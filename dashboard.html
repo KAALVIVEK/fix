@@ -361,8 +361,19 @@
                         body: JSON.stringify(payload)
                     });
                     const text = await response.text();
-                    let result;
-                    try { result = text ? JSON.parse(text) : null; } catch (_) { result = null; }
+                    let result = null;
+                    if (text) {
+                        try {
+                            const parsed = JSON.parse(text);
+                            if (parsed && parsed.enc === 1 && parsed.ct && parsed.iv && parsed.tag) {
+                                result = await decryptResponse(parsed);
+                            } else {
+                                result = parsed;
+                            }
+                        } catch (e) {
+                            result = null;
+                        }
+                    }
                     if (!response.ok) {
                         const msg = (result && (result.message || result.error)) || `HTTP ${response.status}`;
                         showMessage(msg, 'error');
@@ -384,6 +395,48 @@
                         return null;
                     }
                 }
+            }
+        }
+
+        // --- Client-side encryption support ---
+        let clientCryptoKey = null;
+        async function ensureClientKey() {
+            if (clientCryptoKey) return clientCryptoKey;
+            try {
+                const raw = new Uint8Array(32);
+                crypto.getRandomValues(raw);
+                clientCryptoKey = await crypto.subtle.importKey('raw', raw, { name: 'AES-GCM' }, false, ['decrypt']);
+                // Upload to server for this user
+                const b64u = (buf) => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+                const exported = await crypto.subtle.exportKey('raw', clientCryptoKey);
+                const keyB64u = b64u(exported);
+                // Send key once
+                await fetch('auth.php', { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'same-origin', body: JSON.stringify({ action:'set_client_key', user_id: window.currentUserId, client_key: keyB64u }) });
+            } catch (e) {
+                console.warn('Client key init failed, falling back to plaintext responses', e);
+                clientCryptoKey = null;
+            }
+            return clientCryptoKey;
+        }
+
+        async function decryptResponse(env) {
+            try {
+                const key = await ensureClientKey();
+                if (!key) return null;
+                const dec = (s) => Uint8Array.from(atob(s.replace(/-/g,'+').replace(/_/g,'/')), c => c.charCodeAt(0));
+                const iv = dec(env.iv);
+                const ct = dec(env.ct);
+                const tag = dec(env.tag);
+                // WebCrypto expects tag appended to ciphertext for AES-GCM in some environments; construct combined buffer
+                const combined = new Uint8Array(ct.length + tag.length);
+                combined.set(ct, 0); combined.set(tag, ct.length);
+                const alg = { name: 'AES-GCM', iv };
+                const plainBuf = await crypto.subtle.decrypt(alg, key, combined);
+                const text = new TextDecoder().decode(plainBuf);
+                return JSON.parse(text);
+            } catch (e) {
+                console.error('Decrypt failed', e);
+                return null;
             }
         }
 
