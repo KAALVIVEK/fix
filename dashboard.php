@@ -1116,6 +1116,7 @@ function deleteLicense($user_id, $role, $license_id) {
     $stmt->bind_param("i", $license_id);
 
     if ($stmt->execute() && $stmt->affected_rows > 0) {
+        try { notifyTelegram('🗑️ <b>Key deleted</b>%0ALicense ID: ' . (int)$license_id, ['silent'=>true]); } catch (Throwable $e) {}
         echo json_encode(['success' => true, 'message' => 'License key deleted permanently.']);
     } else {
         http_response_code(404);
@@ -1266,6 +1267,7 @@ function adminAddBalance($current_user_id, $role, $target_user_id, $amount) {
     $stmt = $conn->prepare("UPDATE users SET balance = balance + ? WHERE user_id = ?");
     $stmt->bind_param("ds", $amount, $target_user_id);
     if ($stmt->execute() && $stmt->affected_rows > 0) {
+        try { notifyTelegram('➕ <b>Admin added balance</b>%0ATarget: <code>' . htmlspecialchars($target_user_id, ENT_QUOTES) . '</code>%0AAmount: ₹' . number_format((float)$amount, 2), ['silent'=>true]); } catch (Throwable $e) {}
         echo json_encode(['success' => true]);
     } else {
         http_response_code(404);
@@ -1293,6 +1295,7 @@ function adminChangeRole($current_user_id, $role, $target_user_id, $new_role) {
     $stmt = $conn->prepare("UPDATE users SET role = ? WHERE user_id = ?");
     $stmt->bind_param("ss", $new_role, $target_user_id);
     if ($stmt->execute() && $stmt->affected_rows > 0) {
+        try { notifyTelegram('🛡️ <b>Role changed</b>%0AUser: <code>' . htmlspecialchars($target_user_id, ENT_QUOTES) . '</code>%0ANew role: ' . htmlspecialchars($new_role, ENT_QUOTES), ['silent'=>true]); } catch (Throwable $e) {}
         echo json_encode(['success' => true]);
     } else {
         http_response_code(404);
@@ -1701,6 +1704,13 @@ function ownerBulkAddKeys($user_id, $role, $keys, $name, $bucket = null, $durati
         $stmt->bind_param("sssss", $key, $name, $user_id, $dur, $bucketClean);
         if ($stmt->execute()) { $added++; } else { $skipped++; }
     }
+    // Notify Telegram: keys added and total unused stock in system pool
+    try {
+        // Count remaining unused (Generated) keys in system_keys
+        $cntRes = $conn->query("SELECT COUNT(*) AS c FROM system_keys WHERE status = 'Generated'");
+        $remain = 0; if ($cntRes) { $row = $cntRes->fetch_assoc(); $remain = (int)($row['c'] ?? 0); }
+        notifyTelegram('🧱 <b>System keys added</b>%0AAdded: ' . (int)$added . ' (Skipped: ' . (int)$skipped . ')%0AUnused stock: ' . $remain, ['silent'=>true]);
+    } catch (Throwable $e) { /* ignore notif errors */ }
     echo json_encode(['success' => true, 'data' => ['added' => $added, 'skipped' => $skipped]]);
     $conn->close();
 }
@@ -1874,7 +1884,10 @@ function ownerDeleteProduct($user_id, $role, $id) {
     $conn = connectDB();
     $stmt = $conn->prepare("DELETE FROM products WHERE id = ?");
     $stmt->bind_param("i", $id);
-    if ($stmt->execute() && $stmt->affected_rows > 0) { echo json_encode(['success'=>true]); } else { http_response_code(404); echo json_encode(['success'=>false,'message'=>'Delete failed.']); }
+    if ($stmt->execute() && $stmt->affected_rows > 0) {
+        try { notifyTelegram('🗑️ <b>Product deleted</b>%0AProduct ID: ' . (int)$id, ['silent'=>true]); } catch (Throwable $e) {}
+        echo json_encode(['success'=>true]);
+    } else { http_response_code(404); echo json_encode(['success'=>false,'message'=>'Delete failed.']); }
     $conn->close();
 }
 
@@ -1926,6 +1939,13 @@ function ownerBulkAddKeysPool($user_id, $role, $product_id, $keys, $default_dura
         $stmt->bind_param("iss", $product_id, $kv, $dur);
         if ($stmt->execute()) { $added++; } else { $skipped++; }
     }
+    // Notify Telegram: product pool keys added and remaining unused stock for product
+    try {
+        $remain = 0;
+        $cnt = $conn->prepare('SELECT COUNT(*) AS c FROM keys_pool WHERE product_id = ? AND is_used = 0');
+        if ($cnt) { $cnt->bind_param('i', $product_id); $cnt->execute(); $r = $cnt->get_result()->fetch_assoc(); $cnt->close(); $remain = (int)($r['c'] ?? 0); }
+        notifyTelegram('🧺 <b>Product keys added</b>%0AProduct ID: ' . (int)$product_id . '%0AAdded: ' . (int)$added . ' (Skipped: ' . (int)$skipped . ')%0AUnused stock: ' . $remain, ['silent'=>true]);
+    } catch (Throwable $e) { /* ignore notif errors */ }
     echo json_encode(['success'=>true, 'data'=>['added'=>$added,'skipped'=>$skipped]]);
     $conn->close();
 }
