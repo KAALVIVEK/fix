@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title id="pageTitle">Ztrax Key Panel - Authentication</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0c0812;
+            overflow-x: hidden;
+        }
+        .primary { color: #00E5FF; }
+        .accent-purple { color: #5a5aff; }
+        .cyber-pink { color: #FF00A6; }
+        .contrast-cyan { color: #00FFFF; }
+        .futuristic-bg {
+            position: relative;
+            background-image: url('1.jpg');
+            background-size: cover;
+            background-attachment: fixed;
+            background-position: center;
+            min-height: 100vh;
+            overflow-x: hidden;
+            background-color: #000;
+        }
+        .futuristic-bg::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.6);
+            z-index: 0;
+            pointer-events: none;
+        }
+        .neon-logo {
+            color: #fff;
+            text-shadow: 
+                0 0 2px #fff, 
+                0 0 10px rgba(255, 0, 166, 0.7),
+                0 0 20px rgba(0, 229, 255, 0.6),
+                0 4px 8px rgba(0, 0, 0, 0.8); 
+            animation: neon-flicker 1.5s infinite alternate;
+        }
+        @keyframes neon-flicker {
+            0%, 19%, 21%, 23%, 25%, 54%, 56%, 100% { 
+                opacity: 1; 
+                text-shadow: 0 0 4px #fff, 0 0 10px #FF00A6;
+            }
+            20%, 22%, 24%, 55% { 
+                opacity: 0.8;
+                text-shadow: none;
+            }
+        }
+        .tagline-glow {
+            color: #fff;
+            text-shadow: 0 0 8px #00FFFF;
+        }
+        .glass-card {
+            position: relative; 
+            background: rgba(255, 255, 255, 0.18);
+            backdrop-filter: blur(35px);
+            border: 1px solid rgba(255, 255, 255, 0.4);
+            box-shadow: 0 0 25px rgba(255, 0, 166, 0.6),
+                        0 0 50px rgba(0, 229, 255, 0.3);
+        }
+        .glowing-input {
+            background-color: rgba(255, 255, 255, 0.15); 
+            border-color: rgba(255, 255, 255, 0.3);
+            color: #fff;
+            transition: all 0.3s ease;
+        }
+        .glowing-input:focus {
+            box-shadow: 0 0 0 1px rgba(0, 229, 255, 0.8),
+                        0 0 10px rgba(255, 0, 166, 0.4);
+            border-color: #00E5FF;
+            background-color: rgba(0, 0, 0, 0.7);
+        }
+        .text-high-contrast {
+            text-shadow: 0 0 2px rgba(0, 0, 0, 0.9), 0 0 5px rgba(255, 255, 255, 0.3);
+        }
+        @keyframes button-pulse-glow {
+            0% { box-shadow: 0 0 10px rgba(0, 229, 255, 0.5); }
+            50% { box-shadow: 0 0 20px rgba(255, 0, 166, 0.7); } 
+            100% { box-shadow: 0 0 10px rgba(0, 229, 255, 0.5); }
+        }
+        @keyframes neon-ripple {
+            0% { transform: scale(0); opacity: 1; }
+            100% { transform: scale(4); opacity: 0; }
+        }
+        .glowing-button {
+            position: relative;
+            overflow: hidden;
+            transition: all 0.3s ease;
+            background-image: linear-gradient(to right, #00E5FF, #FF00A6, #3b82f6); 
+            background-size: 300% auto; 
+            animation: button-pulse-glow 3s infinite alternate; 
+            z-index: 1; 
+        }
+        .glowing-button:hover {
+            background-position: center center;
+            transform: translateY(-3px) scale(1.03); 
+            box-shadow: 0 15px 40px rgba(0, 229, 255, 0.9);
+        }
+        .ripple {
+            position: absolute;
+            background: radial-gradient(circle, rgba(255, 255, 255, 0.9) 0%, rgba(0, 229, 255, 0.9) 10%, transparent 80%);
+            border-radius: 50%;
+            pointer-events: none;
+            transform: scale(0);
+            z-index: 2;
+        }
+        .ripple.animate {
+            animation: neon-ripple 0.6s linear;
+        }
+    </style>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'primary': '#00E5FF', 
+                        'primary-dark': '#00BFFF', 
+                        'accent-purple': '#5a5aff', 
+                        'cyber-pink': '#FF00A6', 
+                        'contrast-cyan': '#00FFFF',
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="futuristic-bg">
+
+    <div id="appContainer">
+        
+        <div id="authView" class="min-h-screen flex items-center justify-center p-4 relative z-10">
+            
+            <div class="z-20 w-full max-w-md rounded-2xl overflow-hidden transition-all duration-300 glass-card 
+                        md:max-w-lg md:mr-auto md:ml-0 md:translate-x-1/4">
+
+                <div class="px-6 py-10 text-center">
+                    <h2 id="headerTitle" class="neon-logo text-4xl font-extrabold tracking-wider uppercase">
+                        Ztrax Key Panel
+                    </h2>
+                    <p class="tagline-glow text-xs mt-2 tracking-widest uppercase text-contrast-cyan">
+                        Secure Access. Infinite Power.
+                    </p>
+                    <p id="headerSubtitle" class="mt-4 text-sm text-gray-300 text-high-contrast">
+                        Access granted. Protocol status: Green.
+                    </p>
+                </div>
+
+                <div class="p-8 sm:p-10 border-t border-gray-700/50">
+                    <form id="authForm" onsubmit="handleButtonClick(event)" class="space-y-6">
+
+                        <div id="nameField" class="hidden relative">
+                            <label for="name" class="block text-xs font-medium text-gray-300 mb-1 ml-1 uppercase text-high-contrast">Full Name</label>
+                            <div class="relative mt-1">
+                                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none primary">
+                                    <svg data-lucide="user"></svg>
+                                </div>
+                                <input id="name" name="name" type="text" autocomplete="name"
+                                    class="glowing-input block w-full pl-10 pr-4 py-2 border rounded-lg shadow-sm placeholder-gray-500 focus:outline-none focus:ring-0 sm:text-base transition duration-300 ease-in-out">
+                            </div>
+                        </div>
+
+                        <div class="relative">
+                            <label for="email" class="block text-xs font-medium text-gray-300 mb-1 ml-1 uppercase text-high-contrast">Email Address</label>
+                            <div class="relative mt-1">
+                                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none primary">
+                                    <svg data-lucide="mail"></svg>
+                                </div>
+                                <input id="email" name="email" type="email" autocomplete="email" required
+                                    class="glowing-input block w-full pl-10 pr-4 py-2 border rounded-lg shadow-sm placeholder-gray-500 focus:outline-none focus:ring-0 sm:text-base transition duration-300 ease-in-out">
+                            </div>
+                        </div>
+
+                        <div class="relative">
+                            <label for="password" class="block text-xs font-medium text-gray-300 mb-1 ml-1 uppercase text-high-contrast">Password</label>
+                            <div class="relative mt-1">
+                                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none primary">
+                                    <svg data-lucide="lock"></svg>
+                                </div>
+                                <input id="password" name="password" type="password" autocomplete="current-password" required
+                                    class="glowing-input block w-full pl-10 pr-4 py-2 border rounded-lg shadow-sm placeholder-gray-500 focus:outline-none focus:ring-0 sm:text-base transition duration-300 ease-in-out"
+                                    placeholder="••••••••">
+                            </div>
+                        </div>
+
+                        <div id="confirmPasswordField" class="hidden relative">
+                            <label for="confirm-password" class="block text-xs font-medium text-gray-300 mb-1 ml-1 uppercase text-high-contrast">Confirm Password</label>
+                            <div class="relative mt-1">
+                                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none primary">
+                                    <svg data-lucide="lock"></svg>
+                                </div>
+                                <input id="confirm-password" name="confirm-password" type="password"
+                                    class="glowing-input block w-full pl-10 pr-4 py-2 border rounded-lg shadow-sm placeholder-gray-500 focus:outline-none focus:ring-0 sm:text-base transition duration-300 ease-in-out"
+                                    placeholder="••••••••">
+                            </div>
+                        </div>
+
+                        <div id="referralField" class="relative">
+                            <label for="referral-code" class="block text-xs font-medium text-gray-300 mb-1 ml-1 uppercase text-high-contrast">Referral Code (Optional)</label>
+                            <div class="relative mt-1">
+                                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none accent-purple">
+                                    <svg data-lucide="key-round"></svg>
+                                </div>
+                                <input id="referral-code" name="referral-code" type="text" autocomplete="off"
+                                    class="glowing-input block w-full pl-10 pr-4 py-2 border rounded-lg shadow-sm placeholder-gray-500 focus:outline-none focus:ring-0 sm:text-base transition duration-300 ease-in-out"
+                                    placeholder="12-digit code">
+                            </div>
+                        </div>
+
+                        <div id="loginMetaSection" class="flex items-center justify-end">
+                            <div class="text-sm">
+                                <a href="#" class="font-medium text-contrast-cyan hover:text-white transition duration-200 ease-in-out">
+                                    System Access Recovery? (Forgot Password)
+                                </a>
+                            </div>
+                        </div>
+
+                        <div>
+                            <button id="submitButton" type="button" onclick="handleButtonClick(event)"
+                                class="glowing-button w-full flex justify-center py-3 px-4 border border-transparent rounded-lg text-sm font-semibold text-white focus:outline-none focus:ring-4 focus:ring-offset-2 focus:ring-primary/50 focus:ring-offset-transparent transform active:scale-[0.98]">
+                                <span class="text-high-contrast">ACCESS TERMINAL</span>
+                            </button>
+                        </div>
+                    </form>
+
+                    <p class="mt-8 text-center text-sm text-gray-400 text-high-contrast">
+                        <span id="toggleText">New User Protocol Initiated?</span>
+                        <a href="#" id="toggleLink" onclick="toggleMode(event)" class="font-semibold text-contrast-cyan hover:text-white transition duration-200 ease-in-out ml-1">
+                            Begin Registration
+                        </a>
+                    </p>
+                </div>
+
+                <div id="messageBox" class="p-4 bg-yellow-900/40 text-yellow-300 text-sm text-center hidden border-t border-yellow-500/30 rounded-b-2xl">
+                </div>
+
+                <div class="p-4 bg-gray-900/20 text-center text-xs text-gray-500 border-t border-gray-700/50 rounded-b-2xl text-high-contrast">
+                    &copy; 2024 Ztrax Key Panel • Powered by Vivek | <a href="#" class="hover:text-primary">System Protocol Guide</a>
+                </div>
+            </div>
+        </div>
+        
+    </div>
+
+    <script>
+        const BASE_URL = window.location.origin;
+        const PHP_API_ENDPOINT = `auth.php`; 
+        
+        window.currentMode = 'login'; 
+
+        async function fetchAPI(action, data, retries = 3) {
+            const payload = { action, ...data };
+            for (let i = 0; i < retries; i++) {
+                try {
+                    const response = await fetch(PHP_API_ENDPOINT, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    const text = await response.text();
+                    let result = null;
+                    try { result = text ? JSON.parse(text) : null; } catch (_) {}
+                    if (!response.ok) {
+                        const backendMsg = (result && (result.message || result.error)) || `HTTP ${response.status}`;
+                        if (response.status === 404 && i === retries - 1) {
+                            throw new Error(`HTTP 404. PHP backend not found at ${PHP_API_ENDPOINT}`);
+                        }
+                        throw new Error(backendMsg);
+                    }
+                    return result;
+                } catch (error) {
+                    if (i === retries - 1) { throw error; }
+                    await new Promise(r => setTimeout(r, Math.pow(2, i) * 1000));
+                }
+            }
+        }
+
+        window.handleFormSubmit = async () => {
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            const messageBox = document.getElementById('messageBox');
+            
+            messageBox.classList.remove('hidden', 'bg-red-900/40', 'text-red-300', 'border-red-500/30', 'bg-green-900/40', 'text-green-300', 'border-green-500/30');
+            messageBox.textContent = `[STATUS: PENDING] Processing credentials...`;
+
+            try {
+                if (window.currentMode === 'login') {
+                    const result = await fetchAPI('login_user', { email, password });
+                    
+                    if (result.success) {
+                        localStorage.setItem('ztrax_user_id', result.user_id);
+                        localStorage.setItem('ztrax_role', result.role);
+                        
+                        let message = `[STATUS: AUTH_SUCCESS] Access granted. Redirecting to console...`;
+                        messageBox.textContent = message;
+                        messageBox.classList.add('bg-green-900/40', 'text-green-300', 'border-green-500/30');
+
+                        // FIX: Redirect using query parameters to ensure dashboard.html loads correctly on first attempt
+                        setTimeout(() => {
+                            window.location.href = `dashboard.html?user_id=${result.user_id}&role=${result.role}`;
+                        }, 500); 
+
+                    } else {
+                        throw new Error(result.message || 'Login failed.');
+                    }
+                    
+                } else {
+                    const name = document.getElementById('name').value;
+                    const referralCode = document.getElementById('referral-code').value.trim();
+                    const confirmPassword = document.getElementById('confirm-password').value;
+
+                    if (password !== confirmPassword) {
+                        throw new Error("Passwords mismatch. Verify inputs.");
+                    }
+                    
+                    const payload = referralCode ? { email, password, name, referral_code: referralCode } : { email, password, name };
+                    const result = await fetchAPI('register_user', payload);
+
+                    if (result.success) {
+                        let message = `[STATUS: REG_SUCCESS] ${result.message || 'User created.'} Switching to login mode...`;
+                        messageBox.textContent = message;
+                        messageBox.classList.add('bg-green-900/40', 'text-green-300', 'border-green-500/30');
+                        
+                        setTimeout(() => {
+                            window.currentMode = 'login';
+                            updateAuthUI();
+                            messageBox.classList.add('hidden');
+                        }, 3000); 
+
+                    } else {
+                         throw new Error(result.message || 'Registration failed.');
+                    }
+                }
+            } catch (error) {
+                console.error("[Auth Error]", error);
+                
+                let errorMessage = error.message.includes('404') ? 
+                                    'PHP Backend not found. Check deployment path.' :
+                                    error.message.includes('Passwords mismatch') ?
+                                    'Passwords mismatch. Verify inputs.' :
+                                    error.message.includes('Invalid credentials') ?
+                                    'Invalid credentials provided.' :
+                                    error.message.includes('Email already registered') ?
+                                    'Email already registered. Try logging in.' :
+                                    error.message;
+
+                messageBox.textContent = `[STATUS: AUTH_FAILURE] ${errorMessage}`;
+                messageBox.classList.add('bg-red-900/40', 'text-red-300', 'border-red-500/30');
+            }
+        };
+
+        window.handleButtonClick = function(event) {
+            event.preventDefault(); 
+            const button = document.getElementById('submitButton');
+            
+            const rect = button.getBoundingClientRect();
+            const size = Math.max(rect.width, rect.height) * 1.5;
+            const x = event.clientX - rect.left;
+            const y = event.clientY - rect.top;
+
+            const existingRipples = button.querySelectorAll('.ripple');
+            existingRipples.forEach(r => r.remove());
+
+            const ripple = document.createElement('span');
+            ripple.classList.add('ripple');
+            ripple.style.width = ripple.style.height = `${size}px`;
+            ripple.style.left = `${x - size / 2}px`;
+            ripple.style.top = `${y - size / 2}px`;
+            
+            button.appendChild(ripple);
+            requestAnimationFrame(() => {
+                ripple.classList.add('animate');
+            });
+            
+            setTimeout(() => {
+                window.handleFormSubmit();
+            }, 300); 
+        }
+
+        window.toggleMode = function(event) {
+            event.preventDefault(); 
+            window.currentMode = window.currentMode === 'login' ? 'signup' : 'login';
+            updateAuthUI();
+        }
+
+        function updateAuthUI() {
+            const isLogin = window.currentMode === 'login';
+
+            document.getElementById('headerSubtitle').textContent = isLogin ? 'Access granted. Protocol status: Green.' : 'Initiate secure account creation.';
+
+            document.getElementById('nameField').classList.toggle('hidden', isLogin);
+            document.getElementById('confirmPasswordField').classList.toggle('hidden', isLogin);
+            document.getElementById('referralField').classList.toggle('hidden', isLogin);
+            
+            document.getElementById('loginMetaSection').classList.toggle('hidden', !isLogin);
+
+            document.getElementById('toggleText').textContent = isLogin ? "New User Protocol Initiated?" : "Access Already Granted?";
+            document.getElementById('toggleLink').textContent = isLogin ? "Begin Registration" : "Access Terminal";
+
+            document.getElementById('submitButton').querySelector('span').textContent = isLogin ? 'ACCESS TERMINAL' : 'INITIATE PROTOCOL';
+
+            const form = document.getElementById('authForm');
+            if (form) form.reset();
+            document.getElementById('messageBox').classList.add('hidden');
+
+            if (typeof lucide !== 'undefined' && lucide.createIcons) {
+                 lucide.createIcons();
+            }
+        }
+        
+        updateAuthUI();
+    </script>
+    
+</body>
+</html>
