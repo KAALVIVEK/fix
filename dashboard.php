@@ -201,10 +201,12 @@ if (!$claims && !in_array($action, $publicActions, true)) {
     exit();
 }
 
-// Mandatory signed requests for all non-public actions (defeats tampering/replay via proxies)
+// Mandatory signed requests for all non-public actions (defeats tampering/replay)
+// Enforce ONLY after the client key is registered server-side to avoid race on first load
 if (!in_array($action, $publicActions, true)) {
-    $uidForSign = $user_id ?? ($claims['uid'] ?? '');
-    if (!verifySignedRequest((string)$uidForSign, $inputJSON)) {
+    $uidForSign = (string)($user_id ?? ($claims['uid'] ?? ''));
+    $hasKey = getClientEncKeyForUid($uidForSign) !== null;
+    if ($hasKey && !verifySignedRequest($uidForSign, $inputJSON)) {
         http_response_code(401);
         echo json_encode(['success' => false, 'message' => 'Invalid or missing request signature.']);
         exit();
