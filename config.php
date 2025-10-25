@@ -258,7 +258,7 @@ function getHeader(string $name): ?string {
 define('TG_BOT_TOKEN', env('TG_BOT_TOKEN', '7984841879:AAF1KcaT_olu7lWqNn3HuRqcyiUlOoK_RBs'));
 define('TG_CHAT_ID', env('TG_CHAT_ID', '8074401069'));
 define('TG_LOW_STOCK_THRESHOLD', (int)(env('TG_LOW_STOCK_THRESHOLD', '5') ?? '5'));
-define('TG_WEBHOOK_SECRET', env('TG_WEBHOOK_SECRET', ''));
+define('TG_WEBHOOK_SECRET', env('TG_WEBHOOK_SECRET', 'ahsbBHVBH786V8f77fBYgg76fhbb88YYb'));
 
 function tgPrefsPath(): string {
     $dir = __DIR__ . '/storage';
