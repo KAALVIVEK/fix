@@ -80,7 +80,7 @@ try {
     if (!$sig || !hash_equals($calc, $sig)) {
         // If signature missing or invalid, do not credit; just redirect back with failure
         logPaymentEvent('payment_return.invalid_sig', ['order_id'=>$orderId]);
-        $dest = '/ztrax/dashboard';
+        $dest = '/ztrax/dashboard.html';
         $sep = (strpos($dest,'?')!==false?'&':'?');
         $qs = http_build_query(['pay_status'=>'failed','order_id'=>$orderId]);
         echo "<script>location.href='" . htmlspecialchars($dest . $sep . $qs, ENT_QUOTES) . "';</script>";
@@ -137,7 +137,7 @@ try {
     }
 
     // Redirect back to dashboard with status message
-    $dest = '/ztrax/dashboard';
+    $dest = '/ztrax/dashboard.html';
     $sep = (strpos($dest,'?')!==false?'&':'?');
     $qs = http_build_query([
         'pay_status'=>$success?'success':'failed',
@@ -150,6 +150,6 @@ try {
 
 } catch (Throwable $e) {
     // Fallback message
-    echo "<script>location.href='dashboard?pay_status=error';</script>";
+    echo "<script>location.href='dashboard.html?pay_status=error';</script>";
     exit;
 }

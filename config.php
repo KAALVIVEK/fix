@@ -33,7 +33,7 @@ define('USER_TOKEN', env('USER_TOKEN', '0c9de1497ff5444283795008a1591a06'));
 define('API_BASE_URL', env('API_BASE_URL', 'https://pay.t-g.xyz'));
 define('DEFAULT_ROUTE', is_numeric(env('DEFAULT_ROUTE', '1')) ? (int)env('DEFAULT_ROUTE', '1') : 1);
 // Default redirect URL used when not provided per request
-define('REDIRECT_URL', env('REDIRECT_URL', 'https://ztrax.in/ztrax/dashboard'));
+define('REDIRECT_URL', env('REDIRECT_URL', 'https://ztrax.in/ztrax/dashboard.html'));
 
 // Database configuration (prefer env; fall back to constants if previously defined)
 if (!defined('DB_HOST')) { define('DB_HOST', env('DB_HOST', 'localhost')); }
