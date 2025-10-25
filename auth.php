@@ -73,7 +73,9 @@ try {
             $response = handleSetClientKey($conn, $input_data);
             break;
         case 'logout':
-            $response = handleLogout($conn, $input_data);
+            // handleLogout will send its own response and exit to avoid echoing JSON
+            handleLogout($conn, $input_data);
+            // no break; unreachable
             break;
         default:
             $response = array("success" => false, "message" => "Invalid action requested.");
@@ -254,6 +256,11 @@ function handleLogout($conn, $data) {
         // Remove stored client key to prevent reuse of signatures
         deleteClientEncKeyForUid((string)$claims['uid']);
     }
-    http_response_code(200);
-    return [ 'success'=>true, 'message'=>'Logged out' ];
+    // Return empty 204 so browsers/devtools don't display HTML fallback
+    http_response_code(204);
+    header('Content-Type: text/plain; charset=UTF-8');
+    header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+    header('Pragma: no-cache');
+    header('Content-Length: 0');
+    exit;
 }
