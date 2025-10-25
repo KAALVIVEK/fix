@@ -127,6 +127,17 @@ function verifyAuthToken(?string $token): ?array {
     return $data;
 }
 
+// Decide when to enforce request signatures strictly
+function shouldEnforceSignature(?array $claims, string $uid): bool {
+    // Enforce immediately when a client key exists
+    if ($uid !== '' && getClientEncKeyForUid($uid) !== null) { return true; }
+    // Grace period after fresh login to allow key upload/signing init
+    if (is_array($claims) && isset($claims['iat'])) {
+        if ((time() - (int)$claims['iat']) > 10) { return true; }
+    }
+    return false;
+}
+
 function setAuthCookie(string $token): void {
     $secure = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off');
     setcookie('ztrax_token', $token, [
