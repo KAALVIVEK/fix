@@ -71,6 +71,13 @@ function applySecurityHeaders(string $contentType = 'application/json'): void {
     if ($isHttps || env('FORCE_HSTS')) {
         header('Strict-Transport-Security: max-age=31536000; includeSubDomains; preload');
     }
+    // Avoid caching of API responses
+    header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+    header('Pragma: no-cache');
+    // Extra hardening
+    header('X-Permitted-Cross-Domain-Policies: none');
+    header('Permissions-Policy: geolocation=(), microphone=(), camera=(), payment=()');
+    header('Cross-Origin-Resource-Policy: same-origin');
     if ($contentType) {
         header('Content-Type: ' . $contentType . '; charset=UTF-8');
     }
