@@ -72,6 +72,9 @@ try {
         case 'set_client_key':
             $response = handleSetClientKey($conn, $input_data);
             break;
+        case 'logout':
+            $response = handleLogout($conn, $input_data);
+            break;
         default:
             $response = array("success" => false, "message" => "Invalid action requested.");
             http_response_code(400);
@@ -240,4 +243,17 @@ function handleSetClientKey($conn, $data) {
     $ok = setClientEncKeyForUid($uid, $b64);
     if (!$ok) { http_response_code(400); return [ 'success'=>false, 'message'=>'Invalid client_key' ]; }
     return [ 'success'=>true, 'message'=>'Client key set' ];
+}
+
+function handleLogout($conn, $data) {
+    $token = getTokenFromRequest();
+    $claims = verifyAuthToken($token);
+    // Invalidate cookie
+    setcookie('ztrax_token', '', [ 'expires'=>time()-3600, 'path'=>'/', 'secure'=>(!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off'), 'httponly'=>true, 'samesite'=>'Lax' ]);
+    if (is_array($claims) && isset($claims['uid'])) {
+        // Remove stored client key to prevent reuse of signatures
+        deleteClientEncKeyForUid((string)$claims['uid']);
+    }
+    http_response_code(200);
+    return [ 'success'=>true, 'message'=>'Logged out' ];
 }

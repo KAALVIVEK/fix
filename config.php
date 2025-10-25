@@ -199,6 +199,12 @@ function getClientEncKeyForUid(string $uid): ?string {
     return $raw;
 }
 
+function deleteClientEncKeyForUid(string $uid): bool {
+    $path = clientKeyPathForUid($uid);
+    if (is_file($path)) { return @unlink($path); }
+    return true;
+}
+
 function encryptJsonForClient(string $uid, string $json): ?string {
     $key = getClientEncKeyForUid($uid);
     if ($key === null) { return null; }

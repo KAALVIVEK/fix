@@ -340,10 +340,14 @@
         }
 
         window.logout = () => {
-            // Clear credentials and redirect
-            localStorage.removeItem('ztrax_user_id');
-            localStorage.removeItem('ztrax_role');
-            window.location.href = './index.html';
+            // Ask backend to clear cookie and purge client key before redirect
+            fetch('auth.php', { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'same-origin', body: JSON.stringify({ action:'logout' }) })
+              .catch(()=>{})
+              .finally(() => {
+                localStorage.removeItem('ztrax_user_id');
+                localStorage.removeItem('ztrax_role');
+                window.location.href = './index.html';
+              });
         };
         
         async function fetchAPI(action, data = {}) {
