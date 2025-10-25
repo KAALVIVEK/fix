@@ -251,6 +251,33 @@ function getHeader(string $name): ?string {
     return isset($_SERVER[$key]) ? (string)$_SERVER[$key] : null;
 }
 
+// -----------------------------------------------------------------------------
+// Telegram notifications (optional)
+// -----------------------------------------------------------------------------
+
+define('TG_BOT_TOKEN', env('TG_BOT_TOKEN', ''));
+define('TG_CHAT_ID', env('TG_CHAT_ID', ''));
+define('TG_LOW_STOCK_THRESHOLD', (int)(env('TG_LOW_STOCK_THRESHOLD', '10') ?? '10'));
+
+function notifyTelegram(string $text, array $opts = []): void {
+    if (TG_BOT_TOKEN === '' || TG_CHAT_ID === '') { return; }
+    $url = 'https://api.telegram.org/bot' . TG_BOT_TOKEN . '/sendMessage';
+    $payload = [
+        'chat_id' => TG_CHAT_ID,
+        'text' => $text,
+        'parse_mode' => 'HTML',
+        'disable_web_page_preview' => true,
+    ];
+    if (isset($opts['silent']) && $opts['silent'] === true) { $payload['disable_notification'] = true; }
+    $ch = curl_init($url);
+    curl_setopt($ch, CURLOPT_POST, true);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, $payload);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 5);
+    @curl_exec($ch);
+    @curl_close($ch);
+}
+
 function noncesDir(): string {
     $dir = __DIR__ . '/storage/nonces';
     if (!is_dir($dir)) { @mkdir($dir, 0775, true); }

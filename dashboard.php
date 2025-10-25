@@ -987,6 +987,18 @@ function createLicense($user_id, $role, $input) {
     $stmt->execute();
     
     $conn->commit();
+    // Telegram notify purchase and low stock
+    try {
+        notifyTelegram('🛒 <b>Keys purchased</b>%0AUser: <code>' . htmlspecialchars($user_id, ENT_QUOTES) . '</code>%0AQuantity: ' . count($keys) . '%0ANew Balance: ₹' . number_format((float)$newBalance, 2));
+        // Check low stock for product pool if productId provided
+        if ($productId > 0) {
+            $chk = $conn->prepare('SELECT COUNT(*) AS c FROM keys_pool WHERE product_id = ? AND is_used = 0');
+            if ($chk) { $chk->bind_param('i', $productId); $chk->execute(); $r = $chk->get_result()->fetch_assoc(); $chk->close();
+                $remain = (int)($r['c'] ?? 0);
+                if ($remain <= TG_LOW_STOCK_THRESHOLD) { notifyTelegram('⚠️ <b>Low stock</b>%0AProduct ID: ' . $productId . '%0ARemaining: ' . $remain, ['silent'=>true]); }
+            }
+        }
+    } catch (Throwable $e) { /* ignore notif errors */ }
     echo json_encode(['success' => true, 'data' => ['keys' => $keys, 'new_balance' => $newBalance]]);
     $conn->close();
 }
