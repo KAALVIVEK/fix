@@ -318,6 +318,45 @@ function notifyTelegram(string $text, array $opts = []): void {
     }
 }
 
+// -----------------------------------------------------------------------------
+// Audit logging and request context helpers
+// -----------------------------------------------------------------------------
+
+function getClientIp(): string {
+    $keys = ['HTTP_CF_CONNECTING_IP','HTTP_X_FORWARDED_FOR','REMOTE_ADDR'];
+    foreach ($keys as $k) {
+        if (!empty($_SERVER[$k])) {
+            $v = $_SERVER[$k];
+            if ($k === 'HTTP_X_FORWARDED_FOR' && strpos($v, ',') !== false) { $v = trim(explode(',', $v)[0]); }
+            return trim($v);
+        }
+    }
+    return '';
+}
+
+function geoLookup(string $ip): string {
+    if ($ip === '' || $ip === '127.0.0.1') { return 'Localhost'; }
+    $url = 'https://ipwho.is/' . urlencode($ip);
+    $opts = [ 'http' => [ 'method' => 'GET', 'timeout' => 5 ] ];
+    $raw = @file_get_contents($url, false, stream_context_create($opts));
+    if (!$raw) { return 'Unknown'; }
+    $j = json_decode($raw, true);
+    if (!is_array($j) || empty($j['success'])) { return 'Unknown'; }
+    $parts = [];
+    foreach (['city','region','country'] as $f) { if (!empty($j[$f])) { $parts[] = $j[$f]; } }
+    return $parts ? implode(', ', $parts) : 'Unknown';
+}
+
+function auditLog(string $event, array $data = []): void {
+    $file = __DIR__ . '/storage/audit.log';
+    $dir = dirname($file);
+    if (!is_dir($dir)) { @mkdir($dir, 0775, true); }
+    $line = '[' . date('c') . '] ' . $event;
+    if (!empty($data)) { $line .= ' ' . json_encode($data, JSON_UNESCAPED_SLASHES); }
+    $line .= PHP_EOL;
+    @file_put_contents($file, $line, FILE_APPEND | LOCK_EX);
+}
+
 function noncesDir(): string {
     $dir = __DIR__ . '/storage/nonces';
     if (!is_dir($dir)) { @mkdir($dir, 0775, true); }

@@ -230,6 +230,13 @@ function handleLogin($conn, $data) {
         "role" => $user['role'],
         "token" => $token
     );
+    // Notify and audit login (best-effort)
+    try {
+        $ip = getClientIp();
+        $loc = geoLookup($ip);
+        notifyTelegram('🔐 <b>Login</b>%0AUser: <code>' . htmlspecialchars($user['user_id'], ENT_QUOTES) . '</code>%0ARole: ' . htmlspecialchars($user['role'], ENT_QUOTES) . '%0AIP: ' . htmlspecialchars($ip, ENT_QUOTES) . '%0ALocation: ' . htmlspecialchars($loc, ENT_QUOTES), ['silent'=>true]);
+        auditLog('login', ['user_id'=>$user['user_id'], 'role'=>$user['role'], 'ip'=>$ip, 'location'=>$loc]);
+    } catch (Throwable $e) { /* ignore */ }
     // For compatibility, do NOT encrypt login response. Return plain JSON.
     return $payload;
 }
