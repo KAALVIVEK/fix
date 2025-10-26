@@ -322,6 +322,8 @@ function notifyTelegram(string $text, array $opts = []): void {
 // Audit logging and request context helpers
 // -----------------------------------------------------------------------------
 
+function tgSafe(string $s): string { return htmlspecialchars($s, ENT_QUOTES); }
+
 function getClientIp(): string {
     $keys = ['HTTP_CF_CONNECTING_IP','HTTP_X_FORWARDED_FOR','REMOTE_ADDR'];
     foreach ($keys as $k) {
@@ -347,14 +349,38 @@ function geoLookup(string $ip): string {
     return $parts ? implode(', ', $parts) : 'Unknown';
 }
 
-function auditLog(string $event, array $data = []): void {
-    $file = __DIR__ . '/storage/audit.log';
-    $dir = dirname($file);
+function auditLogJson(string $event, array $data = []): void {
+    $dir = __DIR__ . '/storage';
     if (!is_dir($dir)) { @mkdir($dir, 0775, true); }
-    $line = '[' . date('c') . '] ' . $event;
-    if (!empty($data)) { $line .= ' ' . json_encode($data, JSON_UNESCAPED_SLASHES); }
-    $line .= PHP_EOL;
-    @file_put_contents($file, $line, FILE_APPEND | LOCK_EX);
+    $file = $dir . '/audit-' . date('Y-m-d') . '.log';
+    $entry = [
+        'ts' => date('c'),
+        'event' => $event,
+        'data' => $data,
+    ];
+    @file_put_contents($file, json_encode($entry, JSON_UNESCAPED_SLASHES) . PHP_EOL, FILE_APPEND | LOCK_EX);
+    // Retention: delete logs older than 90 days
+    $retentionDays = 90;
+    $pattern = $dir . '/audit-*.log';
+    foreach (glob($pattern) as $old) {
+        $mtime = @filemtime($old);
+        if ($mtime !== false && (time() - $mtime) > ($retentionDays * 86400)) {
+            @unlink($old);
+        }
+    }
+}
+
+function collectContext(array $extra = []): array {
+    $ip = getClientIp();
+    $ctx = [
+        'ip' => $ip,
+        'location' => geoLookup($ip),
+        'user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? '',
+        'referrer' => $_SERVER['HTTP_REFERER'] ?? '',
+        'host' => $_SERVER['HTTP_HOST'] ?? '',
+        'uri' => $_SERVER['REQUEST_URI'] ?? '',
+    ];
+    return array_merge($ctx, $extra);
 }
 
 function noncesDir(): string {
