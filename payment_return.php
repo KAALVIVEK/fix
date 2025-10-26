@@ -149,6 +149,7 @@ try {
                     $credit->close();
                     if ($ok) {
                         notifyTelegram('💳 <b>Top-up credited</b>%0AUser: <code>' . htmlspecialchars($userId, ENT_QUOTES) . '</code>%0AAmount: ₹' . number_format((float)$useAmount, 2));
+                        auditLogJson('topup_credited', collectContext(['user_id'=>$userId, 'amount'=>$useAmount]));
                     }
                     $msg = $ok ? 'Payment successful. Balance credited.' : 'Payment recorded, user not credited (user not found).';
                 } else {

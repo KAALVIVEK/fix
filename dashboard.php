@@ -28,6 +28,12 @@ function connectDB() {
     return $conn;
 }
 
+/** Notification + Audit helper */
+function notifyAudit(string $event, string $tgText, array $data = [], bool $silent = true): void {
+    try { notifyTelegram($tgText, ['silent'=>$silent]); } catch (Throwable $e) {}
+    auditLogJson($event, collectContext($data));
+}
+
 /** Creates core tables used by dashboard APIs if missing */
 function ensureDashboardCoreTables($conn) {
     // users
@@ -987,18 +993,15 @@ function createLicense($user_id, $role, $input) {
     $stmt->execute();
     
     $conn->commit();
-    // Telegram notify purchase and low stock
-    try {
-        notifyTelegram('🛒 <b>Keys purchased</b>%0AUser: <code>' . htmlspecialchars($user_id, ENT_QUOTES) . '</code>%0AQuantity: ' . count($keys) . '%0ANew Balance: ₹' . number_format((float)$newBalance, 2));
-        // Check low stock for product pool if productId provided
-        if ($productId > 0) {
-            $chk = $conn->prepare('SELECT COUNT(*) AS c FROM keys_pool WHERE product_id = ? AND is_used = 0');
-            if ($chk) { $chk->bind_param('i', $productId); $chk->execute(); $r = $chk->get_result()->fetch_assoc(); $chk->close();
-                $remain = (int)($r['c'] ?? 0);
-                if ($remain <= TG_LOW_STOCK_THRESHOLD) { notifyTelegram('⚠️ <b>Low stock</b>%0AProduct ID: ' . $productId . '%0ARemaining: ' . $remain, ['silent'=>true]); }
-            }
+    // Notify purchase and low stock + audit
+    notifyAudit('keys_purchased', '🛒 <b>Keys purchased</b>%0AUser: <code>' . htmlspecialchars($user_id, ENT_QUOTES) . '</code>%0AQuantity: ' . count($keys) . '%0ANew Balance: ₹' . number_format((float)$newBalance, 2), ['user_id'=>$user_id, 'quantity'=>count($keys), 'new_balance'=>$newBalance]);
+    if ($productId > 0) {
+        $chk = $conn->prepare('SELECT COUNT(*) AS c FROM keys_pool WHERE product_id = ? AND is_used = 0');
+        if ($chk) { $chk->bind_param('i', $productId); $chk->execute(); $r = $chk->get_result()->fetch_assoc(); $chk->close();
+            $remain = (int)($r['c'] ?? 0);
+            if ($remain <= TG_LOW_STOCK_THRESHOLD) { notifyAudit('low_stock', '⚠️ <b>Low stock</b>%0AProduct ID: ' . $productId . '%0ARemaining: ' . $remain, ['product_id'=>$productId, 'remaining'=>$remain]); }
         }
-    } catch (Throwable $e) { /* ignore notif errors */ }
+    }
     echo json_encode(['success' => true, 'data' => ['keys' => $keys, 'new_balance' => $newBalance]]);
     $conn->close();
 }
