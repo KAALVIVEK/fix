@@ -4,8 +4,9 @@
 
 require_once __DIR__ . '/config.php';
 
+// Keep headers minimal to avoid any edge blocking
 header('Content-Type: application/json; charset=UTF-8');
-applySecurityHeaders('application/json');
+header('Cache-Control: no-store');
 
 // Optional simple shared-secret gate with Telegram IP fallback (behind Cloudflare)
 function tg_client_ip(): string {
