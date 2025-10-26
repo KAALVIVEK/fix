@@ -8,7 +8,7 @@ header('Content-Type: application/json; charset=UTF-8');
 applySecurityHeaders('application/json');
 
 // Optional simple shared-secret gate
-$provided = $_GET['secret'] ?? '';
+$provided = $_GET['secret'] ?? ($_GET['secret_token'] ?? (getHeader('X-TELEGRAM-BOT-API-SECRET-TOKEN') ?? ''));
 if (TG_WEBHOOK_SECRET !== '' && $provided !== TG_WEBHOOK_SECRET) {
   http_response_code(403);
   echo json_encode(['ok' => false]);
