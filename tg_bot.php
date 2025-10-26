@@ -7,12 +7,32 @@ require_once __DIR__ . '/config.php';
 header('Content-Type: application/json; charset=UTF-8');
 applySecurityHeaders('application/json');
 
-// Optional simple shared-secret gate
+// Optional simple shared-secret gate with Telegram IP fallback (behind Cloudflare)
+function tg_client_ip(): string {
+  $h = $_SERVER['HTTP_CF_CONNECTING_IP'] ?? ($_SERVER['HTTP_X_FORWARDED_FOR'] ?? ($_SERVER['REMOTE_ADDR'] ?? ''));
+  if (strpos($h, ',') !== false) { $h = trim(explode(',', $h)[0]); }
+  return trim($h);
+}
+function ipInCidr($ip, $cidr): bool {
+  [$subnet, $mask] = explode('/', $cidr);
+  return (ip2long($ip) & ~((1 << (32 - (int)$mask)) - 1)) === (ip2long($subnet) & ~((1 << (32 - (int)$mask)) - 1));
+}
+function isTelegramSource(string $ip): bool {
+  if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6)) { return false; }
+  $ranges = [ '149.154.160.0/20', '91.108.4.0/22', '91.108.8.0/22', '91.108.12.0/22' ];
+  foreach ($ranges as $r) { if (ipInCidr($ip, $r)) return true; }
+  return false;
+}
+
 $provided = $_GET['secret'] ?? ($_GET['secret_token'] ?? (getHeader('X-TELEGRAM-BOT-API-SECRET-TOKEN') ?? ''));
-if (TG_WEBHOOK_SECRET !== '' && $provided !== TG_WEBHOOK_SECRET) {
-  http_response_code(403);
-  echo json_encode(['ok' => false]);
-  exit;
+if (TG_WEBHOOK_SECRET !== '') {
+  $okSecret = hash_equals(TG_WEBHOOK_SECRET, (string)$provided);
+  $okIp = isTelegramSource(tg_client_ip());
+  if (!$okSecret && !$okIp) {
+    http_response_code(403);
+    echo json_encode(['ok' => false]);
+    exit;
+  }
 }
 
 $raw = file_get_contents('php://input');
