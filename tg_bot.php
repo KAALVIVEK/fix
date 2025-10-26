@@ -25,15 +25,7 @@ function isTelegramSource(string $ip): bool {
 }
 
 $provided = $_GET['secret'] ?? ($_GET['secret_token'] ?? (getHeader('X-TELEGRAM-BOT-API-SECRET-TOKEN') ?? ''));
-if (TG_WEBHOOK_SECRET !== '') {
-  $okSecret = hash_equals(TG_WEBHOOK_SECRET, (string)$provided);
-  $okIp = isTelegramSource(tg_client_ip());
-  if (!$okSecret && !$okIp) {
-    http_response_code(403);
-    echo json_encode(['ok' => false]);
-    exit;
-  }
-}
+// Do NOT block webhook deliveries; proceed even if secret missing. Admin checks remain enforced below.
 
 $raw = file_get_contents('php://input');
 $update = json_decode($raw, true);
